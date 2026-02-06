@@ -1,0 +1,10 @@
+{
+    "mcpServers": {
+      "notion": {
+        "url": "https://mcp.notion.com/mcp",
+        "env": {
+        "NOTION_API_KEY": "ntn_P48701329793a5ox5wesnAQSnmYVobPNsbkET2tiMRCgRn"
+      }
+      }
+    }
+  }
