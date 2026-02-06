@@ -8,7 +8,6 @@ chromadb==0.4.22
 
 # PDF Processing
 pypdf==4.0.1
-pypdf2==3.0.1
 
 # LLM Providers
 openai==1.12.0
