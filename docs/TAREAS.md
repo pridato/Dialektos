@@ -13,9 +13,9 @@
 
 *El cimiento. Sin esto, la IA no sabe nada de tus asignaturas.*
 
-- [ ] **Configuración del Entorno Virtual y Repositorio**
+- [X] **Configuración del Entorno Virtual y Repositorio**
   - **Dificultad:** EASY
-  - *Detalle:* `git init`, `venv`, `requirements.txt` (langchain, chromadb, pypdf, openai/ollama).
+  - *Detalle:* `git init`, `venv`, `requirements.txt` (langchain, chromadb, pypdf, openai).
 
 - [ ] **Script ETL: Extracción de Texto (PDFs)**
   - **Dificultad:** MEDIUM

@@ -1,0 +1,38 @@
+# Core RAG Dependencies
+langchain==0.1.9
+langchain-community==0.0.24
+langchain-openai==0.0.6
+
+# Vector Database
+chromadb==0.4.22
+
+# PDF Processing
+pypdf==4.0.1
+pypdf2==3.0.1
+
+# LLM Providers
+openai==1.12.0
+
+# Environment Variables
+python-dotenv==1.0.1
+
+# Data Processing
+numpy==1.26.4
+pandas==2.2.0
+
+# Web Search (for Router Agent)
+tavily-python==0.3.3
+
+# UI Framework
+streamlit==1.31.1
+
+# Visualization
+matplotlib==3.8.3
+plotly==5.19.0
+
+# Text Processing
+tiktoken==0.6.0
+
+# Utilities
+requests==2.31.0
+pydantic==2.6.1
