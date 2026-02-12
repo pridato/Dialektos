@@ -172,13 +172,20 @@ class PDFExtractor:
             logger.debug(f"Documento '{doc.metadata.filename}' (p.{doc.metadata.page_number}): "
                         f"{len(raw_chunks)} chunks generados")
             
+            # Filtrar chunks demasiado cortos (< 10 caracteres)
+            valid_chunks = [c for c in raw_chunks if len(c.strip()) >= 10]
+            
+            if len(valid_chunks) < len(raw_chunks):
+                logger.debug(f"   Descartados {len(raw_chunks) - len(valid_chunks)} chunks cortos "
+                           f"(<10 chars) del documento '{doc.metadata.filename}' (p.{doc.metadata.page_number})")
+            
             # Crear objetos DocumentChunk con metadatos
-            for idx, chunk_text in enumerate(raw_chunks):
+            for idx, chunk_text in enumerate(valid_chunks):
                 chunk = DocumentChunk(
                     chunk_id=str(uuid.uuid4()),
                     text=chunk_text,
                     chunk_index=idx,
-                    total_chunks=len(raw_chunks),
+                    total_chunks=len(valid_chunks),
                     metadata=doc.metadata  # Heredar metadatos del documento
                 )
                 all_chunks.append(chunk)
