@@ -13,7 +13,7 @@ Sistema RAG (Retrieval-Augmented Generation) adaptativo para aprendizaje persona
 - ✅ **Procesamiento Inteligente de PDFs**: Extracción, limpieza y chunking optimizado de documentos
 - ✅ **Persistencia Local**: Base de datos vectorial en disco, sin servidor externo necesario
 - 🚧 **Sistema Adaptativo**: Motor de decisión basado en estado físico y cognitivo (en desarrollo)
-- 🚧 **Router Inteligente**: Combina búsqueda en apuntes con búsqueda web según relevancia (planificado)
+- ✅ **Router de Búsqueda**: Si la similitud en ChromaDB es baja (<0.7), activa búsqueda web (Tavily) en lugar de rechazar
 
 ## 🏗️ Arquitectura
 
@@ -68,14 +68,17 @@ pip install -r requirements.txt
 
 **Nota:** En la primera ejecución, el modelo de Sentence Transformers (~420MB) se descargará automáticamente en `~/.cache/huggingface/`.
 
-### 4. Configurar Variables de Entorno (Opcional)
-
-Si planeas usar integraciones con LLMs:
+### 4. Configurar Variables de Entorno
 
 ```bash
 cp .env.example .env
 # Edita .env con tus API keys
 ```
+
+| Variable | Requerida | Descripción |
+|----------|-----------|-------------|
+| `OPENAI_API_KEY` | Sí | Para GPT-4o mini. Obtén en [OpenAI](https://platform.openai.com/api-keys) |
+| `TAVILY_API_KEY` | No | Para el Router de Búsqueda Web. Si la similitud en ChromaDB es baja (<0.7), se usa búsqueda web en lugar de rechazar. Obtén en [Tavily](https://app.tavily.com) |
 
 ## 📚 Uso
 
@@ -211,9 +214,11 @@ python sql/cleanup_duplicates.py
 - [ ] Prompt engineering para modo socrático
 - [ ] Interfaz Streamlit básica
 
+### ✅ Router de Búsqueda (Nuevo)
+- [x] Router inteligente: apuntes vs búsqueda web según similitud (umbral 0.7)
+
 ### 📋 Planificado
 - [ ] Motor de adaptabilidad biológica (estado físico/cognitivo)
-- [ ] Router inteligente (apuntes vs búsqueda web)
 - [ ] Dashboard de métricas de aprendizaje
 - [ ] Sistema de recomendación de temas
 - [ ] Modo de streaming para respuestas

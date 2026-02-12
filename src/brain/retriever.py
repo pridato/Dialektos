@@ -20,11 +20,12 @@ Proyecto: Dialektos - Sistema RAG Adaptativo
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 from src.ingest.chroma_persistence import ChromaDBPersistence
+from src.brain.web_search import TavilyWebSearch, WebSearchResult
 from src.brain.llm_client import query_llm, query_llm_with_history
 from src.brain.memory import ConversationMemory
 from src.brain.user_profile import build_enriched_system_prompt
@@ -70,7 +71,7 @@ class RAGResponse(BaseModel):
 
     Attributes:
         answer: Texto de la respuesta del LLM.
-        sources: Lista de chunks utilizados como contexto.
+        sources: Lista de chunks utilizados como contexto (apuntes).
         had_context: True si se encontraron chunks relevantes.
         query: Pregunta original del usuario.
         n_chunks_retrieved: Número de chunks inyectados al prompt.
@@ -78,6 +79,8 @@ class RAGResponse(BaseModel):
         adversary_activated: True si se activó el modo adversario para esta pregunta.
         adversary_depth: Profundidad actual del cuestionamiento socrático (0-5).
             Solo tiene valor si adversary_activated es True.
+        source_type: Origen del contexto: "notes" (apuntes) o "web" (búsqueda web).
+        web_sources: Fuentes web (solo poblado cuando source_type == "web").
     """
     answer: str
     sources: List[RetrievedChunk] = Field(default_factory=list)
@@ -87,6 +90,8 @@ class RAGResponse(BaseModel):
     question_type: Optional[QuestionType] = None
     adversary_activated: bool = False
     adversary_depth: Optional[int] = Field(default=None, ge=0, le=5)
+    source_type: Literal["notes", "web"] = "notes"
+    web_sources: List[WebSearchResult] = Field(default_factory=list)
 
 
 # ─── Configuración RAG ──────────────────────────────────────
@@ -113,6 +118,27 @@ RAG_SYSTEM_PROMPT: str = (
 
 RAG_USER_TEMPLATE: str = (
     "--- CONTEXTO (Apuntes del alumno) ---\n"
+    "{context}\n"
+    "--- FIN CONTEXTO ---\n\n"
+    "Pregunta: {question}"
+)
+
+RAG_WEB_SYSTEM_PROMPT: str = (
+    "Eres Dialektos, un asistente de estudio universitario especializado "
+    "en Ciencia de Datos, Matemáticas y Física.\n\n"
+    "El contexto proviene de una BÚSQUEDA WEB, no de apuntes del alumno.\n\n"
+    "INSTRUCCIONES:\n"
+    "1. Basándote en los fragmentos proporcionados, responde la pregunta "
+    "en ESPAÑOL de forma clara y pedagógica.\n"
+    "2. Cita la URL de la fuente cuando sea relevante para que el alumno "
+    "pueda verificar o profundizar.\n"
+    "3. Si la información es insuficiente o tangencial, indícalo con honestidad.\n"
+    "4. NO inventes datos que no aparezcan en el contexto.\n"
+    "5. Mantén un tono riguroso y didáctico."
+)
+
+RAG_WEB_USER_TEMPLATE: str = (
+    "--- CONTEXTO (Búsqueda Web) ---\n"
     "{context}\n"
     "--- FIN CONTEXTO ---\n\n"
     "Pregunta: {question}"
@@ -164,6 +190,8 @@ class Retriever:
         db: Optional[ChromaDBPersistence] = None,
         max_turns: int = 5,
         adversary_enabled: bool = True,
+        web_search: Optional[TavilyWebSearch] = None,
+        similarity_threshold: float = 0.7,
     ) -> None:
         """
         Inicializa el Retriever con una conexión a ChromaDB y memoria.
@@ -176,6 +204,12 @@ class Retriever:
                 en memoria (default: 5).
             adversary_enabled: Si se debe activar el modo adversario para
                 preguntas conceptuales (default: True).
+            web_search: Cliente de búsqueda web (Tavily). Si es None, se
+                crea uno por defecto. Para desactivar el router web, pasar
+                una instancia sin TAVILY_API_KEY configurada.
+            similarity_threshold: Umbral de similitud (0-1). Si max_score
+                en ChromaDB >= threshold, se usan apuntes; si no, se
+                activa búsqueda web (default: 0.7).
         """
         self.db: ChromaDBPersistence = db or ChromaDBPersistence()
         self.memory: ConversationMemory = ConversationMemory(
@@ -183,9 +217,12 @@ class Retriever:
         )
         self.adversary_enabled: bool = adversary_enabled
         self.adversary_session: AdversarySession = AdversarySession()
+        self.web_search: TavilyWebSearch = web_search or TavilyWebSearch()
+        self.similarity_threshold: float = similarity_threshold
         logger.info(
             f"Retriever inicializado con memoria conversacional "
-            f"(adversario: {'activado' if adversary_enabled else 'desactivado'})"
+            f"(adversario: {'activado' if adversary_enabled else 'desactivado'}, "
+            f"router web: {'activo' if self.web_search.is_available else 'desactivado'})"
         )
 
     @staticmethod
@@ -227,6 +264,33 @@ class Retriever:
                 f"Archivo: {filename}, p.{page}]"
             )
             blocks.append(f"{header}\n{chunk['text']}")
+
+        return "\n\n".join(blocks)
+
+    @staticmethod
+    def _format_web_context(web_results: List[WebSearchResult]) -> str:
+        """
+        Formatea resultados de búsqueda web para el prompt.
+
+        Cada resultado se presenta con título, URL y contenido
+        para que el LLM pueda citar fuentes.
+
+        Args:
+            web_results: Lista de WebSearchResult de Tavily.
+
+        Returns:
+            Texto formateado listo para inyectar en el prompt.
+        """
+        if not web_results:
+            return ""
+
+        blocks: List[str] = []
+        for idx, r in enumerate(web_results, 1):
+            header = (
+                f"[Fuente {idx} | Relevancia: {r.score:.2f} | "
+                f"{r.title} | {r.url}]"
+            )
+            blocks.append(f"{header}\n{r.content}")
 
         return "\n\n".join(blocks)
 
@@ -439,57 +503,100 @@ class Retriever:
 
         logger.info(f"  Chunks recuperados: {len(chunks)}")
 
-        # ── 5. Sin contexto → rechazo estricto ──────────────────────
-        if not chunks:
-            logger.warning(
-                "  Sin contexto relevante. Respondiendo con rechazo.")
-            # Guardar en memoria incluso sin contexto (para continuidad)
-            self.memory.add_user_message(pregunta)
-            self.memory.add_assistant_message(NO_CONTEXT_MESSAGE)
+        # ── 5. Search Router: apuntes vs web ────────────────────────
+        max_score: float = (
+            max(c["score"] for c in chunks) if chunks else 0.0
+        )
+        use_notes: bool = max_score >= self.similarity_threshold
 
-            # Resetear adversario si estaba activo
-            if should_reset_adversary:
-                self.adversary_session.reset()
-
-            return RAGResponse(
-                answer=NO_CONTEXT_MESSAGE,
-                sources=[],
-                had_context=False,
-                query=pregunta,
-                n_chunks_retrieved=0,
-                question_type=detected_question_type,
-                adversary_activated=adversary_activated,
-                adversary_depth=adversary_depth,
+        if use_notes and chunks:
+            # Flujo apuntes: contexto de ChromaDB
+            context: str = self._format_context(chunks)
+            sources: List[RetrievedChunk] = [
+                RetrievedChunk(**c) for c in chunks
+            ]
+            web_sources: List[WebSearchResult] = []
+            source_type: Literal["notes", "web"] = "notes"
+            n_context_sources: int = len(sources)
+        else:
+            # Similitud baja: activar búsqueda web (Tavily)
+            logger.info(
+                f"  Similitud baja (max={max_score:.2f} < {self.similarity_threshold}). "
+                "Activando búsqueda web."
+            )
+            web_results: List[WebSearchResult] = (
+                self.web_search.search(search_query, max_results=5)
+                if self.web_search.is_available
+                else []
             )
 
-        # ── 6. Formatear contexto ───────────────────────────────────
-        context: str = self._format_context(chunks)
+            if not web_results:
+                if not self.web_search.is_available:
+                    logger.warning(
+                        "TAVILY_API_KEY no configurada. No se puede usar web search."
+                    )
+                else:
+                    logger.warning("Búsqueda web no devolvió resultados.")
+                # Fallback: rechazo estricto
+                self.memory.add_user_message(pregunta)
+                self.memory.add_assistant_message(NO_CONTEXT_MESSAGE)
+                if should_reset_adversary:
+                    self.adversary_session.reset()
+                return RAGResponse(
+                    answer=NO_CONTEXT_MESSAGE,
+                    sources=[],
+                    had_context=False,
+                    query=pregunta,
+                    n_chunks_retrieved=0,
+                    question_type=detected_question_type,
+                    adversary_activated=adversary_activated,
+                    adversary_depth=adversary_depth,
+                    source_type="notes",
+                    web_sources=[],
+                )
 
-        # ── 7. Construir prompt enriquecido ────────────────────────
+            context = self._format_web_context(web_results)
+            sources = []
+            web_sources = web_results
+            source_type = "web"
+            n_context_sources = len(web_sources)
+
+        # ── 6. Construir prompt enriquecido ────────────────────────
         # Si venimos del modo adversario, usar la pregunta original
         question_for_rag: str = pregunta
         if use_adversary and should_reset_adversary:
-            # Usar la pregunta original del adversario, no la última respuesta
             question_for_rag = self.adversary_session.state.original_question
+
+        if source_type == "web":
+            user_template = RAG_WEB_USER_TEMPLATE
+            base_system_prompt = RAG_WEB_SYSTEM_PROMPT
+        else:
+            user_template = RAG_USER_TEMPLATE
+            base_system_prompt = RAG_SYSTEM_PROMPT
+
+        if use_adversary and should_reset_adversary and source_type == "notes":
             enriched_prompt: str = (
                 "El estudiante ha demostrado comprensión del concepto. "
                 "Ahora proporciona información adicional basada en los apuntes:\n\n"
-                + RAG_USER_TEMPLATE.format(context=context,
-                                           question=question_for_rag)
+                + user_template.format(context=context, question=question_for_rag)
             )
         else:
-            enriched_prompt: str = RAG_USER_TEMPLATE.format(
+            enriched_prompt = user_template.format(
                 context=context,
                 question=question_for_rag,
             )
 
-        logger.debug(f"  Prompt enriquecido ({len(enriched_prompt)} chars)")
+        logger.debug(
+            f"  Prompt enriquecido ({len(enriched_prompt)} chars, "
+            f"source={source_type})"
+        )
 
-        # ── 8. Enriquecer system prompt con perfil del usuario ─────
+        # ── 7. Enriquecer system prompt con perfil del usuario ─────
         enriched_system_prompt: str = build_enriched_system_prompt(
-            RAG_SYSTEM_PROMPT)
+            base_system_prompt
+        )
 
-        # ── 9. Consultar LLM con historial ──────────────────────────
+        # ── 8. Consultar LLM con historial ──────────────────────────
         answer: str = query_llm_with_history(
             enriched_prompt,
             history=history,
@@ -497,37 +604,39 @@ class Retriever:
             temperature=0.3,  # Más determinista para RAG
         )
 
-        # ── 10. Resetear sesión adversaria si se proporcionó contexto ──
+        # ── 9. Resetear sesión adversaria si se proporcionó contexto ──
         if should_reset_adversary:
             self.adversary_session.reset()
             logger.info(
                 "Sesión adversaria finalizada después de proporcionar contexto")
 
-        # ── 11. Guardar turno en memoria ────────────────────────────
+        # ── 10. Guardar turno en memoria ───────────────────────────
         self.memory.add_user_message(pregunta)
         self.memory.add_assistant_message(answer)
 
-        # ── 12. Empaquetar respuesta ───────────────────────────────
-        sources: List[RetrievedChunk] = [
-            RetrievedChunk(**chunk) for chunk in chunks
-        ]
-
+        # ── 11. Empaquetar respuesta ───────────────────────────────
         response = RAGResponse(
             answer=answer,
             sources=sources,
             had_context=True,
             query=question_for_rag if (
                 use_adversary and should_reset_adversary) else pregunta,
-            n_chunks_retrieved=len(sources),
+            n_chunks_retrieved=n_context_sources,
             question_type=detected_question_type,
             adversary_activated=adversary_activated,
             adversary_depth=adversary_depth if adversary_activated else None,
+            source_type=source_type,
+            web_sources=web_sources,
         )
 
+        score_info = (
+            f"max_score={sources[0].score:.2f}"
+            if sources
+            else f"web_sources={len(web_sources)}"
+        )
         logger.info(
-            f"  RAG completado: {response.n_chunks_retrieved} fuentes, "
-            f"max_score={sources[0].score:.2f}, "
-            f"memoria={len(self.memory)} turnos"
+            f"  RAG completado: {n_context_sources} fuentes ({source_type}), "
+            f"{score_info}, memoria={len(self.memory)} turnos"
         )
 
         return response
@@ -589,26 +698,37 @@ if __name__ == "__main__":
 
             # Mostrar fuentes
             if resp.had_context:
-                scores = [s.score for s in resp.sources]
-                print(
-                    f"\n  [{resp.n_chunks_retrieved} chunks | "
-                    f"max score: {max(scores):.2f} | "
-                    f"min score: {min(scores):.2f} | "
-                    f"memoria: {len(rag.memory)} turnos]"
-                )
+                if resp.source_type == "notes" and resp.sources:
+                    scores = [s.score for s in resp.sources]
+                    print(
+                        f"\n  [{resp.n_chunks_retrieved} chunks | "
+                        f"max score: {max(scores):.2f} | "
+                        f"min score: {min(scores):.2f} | "
+                        f"memoria: {len(rag.memory)} turnos]"
+                    )
+                else:
+                    print(
+                        f"\n  [Fuentes web: {len(resp.web_sources)} | "
+                        f"memoria: {len(rag.memory)} turnos]"
+                    )
             else:
-                print("\n  [Sin contexto relevante en la DB]")
+                print("\n  [Sin contexto relevante]")
 
             # Mostrar respuesta
             print(f"\nDialektos: {resp.answer}")
 
             # Mostrar fuentes citadas
             if resp.sources:
-                print("\n  Fuentes:")
+                print("\n  Fuentes (apuntes):")
                 for src in resp.sources:
                     filename = src.metadata.get("filename", "?")
                     page = src.metadata.get("page_number", "?")
                     print(f"    - {filename} (p.{page}) [{src.score:.2f}]")
+            if resp.web_sources:
+                print("\n  Fuentes (web):")
+                for src in resp.web_sources:
+                    print(f"    - {src.title} [{src.score:.2f}]")
+                    print(f"      {src.url}")
 
         except ValueError as e:
             print(f"\n✗ Error: {e}")

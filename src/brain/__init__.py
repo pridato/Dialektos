@@ -14,6 +14,7 @@ Proyecto: Dialektos - Sistema RAG Adaptativo
 from .llm_client import query_llm, query_llm_with_history
 from .memory import ConversationMemory, ChatMessage
 from .retriever import Retriever, RAGResponse, RetrievedChunk
+from .web_search import TavilyWebSearch, WebSearchResult
 from .adversary import (
     QuestionType,
     AdversaryState,
@@ -30,6 +31,8 @@ __all__ = [
     "Retriever",
     "RAGResponse",
     "RetrievedChunk",
+    "TavilyWebSearch",
+    "WebSearchResult",
     "QuestionType",
     "AdversaryState",
     "QuestionAnalyzer",

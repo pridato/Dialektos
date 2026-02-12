@@ -56,9 +56,10 @@
   - **Dificultad:** HARD
   - *Detalle:* Diseñar el prompt para que *cuestione* y *pida justificaciones*. Iterar hasta que deje de dar respuestas directas.
 
-- [ ] **Router de Búsqueda (Agente)**
+- [X] **Router de Búsqueda (Agente)**
   - **Dificultad:** HARD
   - *Detalle:* Lógica condicional: Si la similitud en la DB vectorial es baja (<0.7), activar búsqueda web (Tavily API), si es alta, usar apuntes.
+  - *Completado:* 2026-02-12. Ver `src/brain/web_search.py` y lógica en `retriever.py`
 
 ---
 
