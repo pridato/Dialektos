@@ -11,5 +11,6 @@ Proyecto: Dialektos - Sistema RAG Adaptativo
 """
 
 from .llm_client import query_llm
+from .retriever import Retriever, RAGResponse, RetrievedChunk
 
-__all__ = ["query_llm"]
+__all__ = ["query_llm", "Retriever", "RAGResponse", "RetrievedChunk"]
