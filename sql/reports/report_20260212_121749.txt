@@ -1,0 +1,422 @@
+═══════════════════════════════════════════════════════════════
+  REPORTE DE ANÁLISIS CHROMADB - DIALEKTOS
+═══════════════════════════════════════════════════════════════
+
+Fecha de generación: 2026-02-12 12:17:49
+Base de datos: data/chroma_db/chroma.sqlite3
+Tamaño de BD:  23M
+
+═══════════════════════════════════════════════════════════════
+
+
+───────────────────────────────────────────────────────────
+  📄 01_inspect_schema.sql
+───────────────────────────────────────────────────────────
+
+info                              
+----------------------------------
+=== TABLAS EN LA BASE DE DATOS ===
+tabla_name                         type 
+---------------------------------  -----
+collection_metadata                table
+collections                        table
+databases                          table
+embedding_fulltext_search          table
+embedding_fulltext_search_config   table
+embedding_fulltext_search_content  table
+embedding_fulltext_search_data     table
+embedding_fulltext_search_docsize  table
+embedding_fulltext_search_idx      table
+embedding_metadata                 table
+embeddings                         table
+embeddings_queue                   table
+max_seq_id                         table
+migrations                         table
+segment_metadata                   table
+segments                           table
+tenants                            table
+separador
+---------
+         
+info                           
+-------------------------------
+=== ESTRUCTURA: collections ===
+cid  name         type     notnull  dflt_value  pk
+---  -----------  -------  -------  ----------  --
+0    id           TEXT     0                    1 
+1    name         TEXT     1                    0 
+2    topic        TEXT     1                    0 
+3    dimension    INTEGER  0                    0 
+4    database_id  TEXT     1                    0 
+separador
+---------
+         
+info                          
+------------------------------
+=== ESTRUCTURA: embeddings ===
+cid  name          type       notnull  dflt_value         pk
+---  ------------  ---------  -------  -----------------  --
+0    id            INTEGER    0                           1 
+1    segment_id    TEXT       1                           0 
+2    embedding_id  TEXT       1                           0 
+3    seq_id        BLOB       1                           0 
+4    created_at    TIMESTAMP  1        CURRENT_TIMESTAMP  0 
+separador
+---------
+         
+info                        
+----------------------------
+=== ESTRUCTURA: segments ===
+cid  name        type  notnull  dflt_value  pk
+---  ----------  ----  -------  ----------  --
+0    id          TEXT  0                    1 
+1    type        TEXT  1                    0 
+2    scope       TEXT  1                    0 
+3    topic       TEXT  0                    0 
+4    collection  TEXT  0                    0 
+separador
+---------
+         
+info                   
+-----------------------
+=== ÍNDICES CREADOS ===
+name                                    tbl_name             sql
+--------------------------------------  -------------------  ---
+sqlite_autoindex_collection_metadata_1  collection_metadata     
+sqlite_autoindex_collections_1          collections             
+sqlite_autoindex_collections_2          collections             
+sqlite_autoindex_databases_1            databases               
+sqlite_autoindex_databases_2            databases               
+sqlite_autoindex_embedding_metadata_1   embedding_metadata      
+sqlite_autoindex_embeddings_1           embeddings              
+sqlite_autoindex_max_seq_id_1           max_seq_id              
+sqlite_autoindex_migrations_1           migrations              
+sqlite_autoindex_segment_metadata_1     segment_metadata        
+sqlite_autoindex_segments_1             segments                
+sqlite_autoindex_tenants_1              tenants                 
+
+───────────────────────────────────────────────────────────
+  📄 02_collection_stats.sql
+───────────────────────────────────────────────────────────
+
+info                
+--------------------
+=== INFORMACIÓN DE C
+OLECCIONES ===      
+coleccion             collection_id                             tema             dimensiones_embedding  database_id                         
+--------------------  ----------------------------------------  ---------------  ---------------------  ------------------------------------
+dialektos_documents   a62ab8ee-8d4a-46e9-96ad-d8f3be47d177      persistent://de  768                    00000000-0000-0000-0000-000000000000
+                                                                fault/default/a                                                             
+                                                                62ab8ee-8d4a-46                                                             
+                                                                e9-96ad-d8f3be4                                                             
+                                                                7d177                                                                       
+separador           
+--------------------
+                    
+info                
+--------------------
+=== DOCUMENTOS POR C
+OLECCIÓN ===        
+total_embeddings    
+--------------------
+1996                
+separador           
+--------------------
+                    
+info                
+--------------------
+=== SEGMENTOS DE LA 
+COLECCIÓN ===       
+tipo                  alcance                                   tema           
+--------------------  ----------------------------------------  ---------------
+urn:chroma:segment/v  VECTOR                                    persistent://de
+ector/hnsw-local-per                                            fault/default/a
+sisted                                                          62ab8ee-8d4a-46
+                                                                e9-96ad-d8f3be4
+                                                                7d177          
+
+urn:chroma:segment/m  METADATA                                  persistent://de
+etadata/sqlite                                                  fault/default/a
+                                                                62ab8ee-8d4a-46
+                                                                e9-96ad-d8f3be4
+                                                                7d177          
+
+───────────────────────────────────────────────────────────
+  📄 03_chunks_analysis.sql
+───────────────────────────────────────────────────────────
+
+info      
+----------
+=== RESUME
+N GENERAL 
+DE CHUNKS 
+===       
+total_chun  embeddings_unicos                                 
+----------  --------------------------------------------------
+1996        1996                                              
+separador 
+----------
+          
+info      
+----------
+=== ESTADÍ
+STICAS DE 
+LONGITUD D
+E TEXTO ==
+=         
+total_docu  min_longitud                                        max_longitud     promedio_longitud
+----------  --------------------------------------------------  ---------------  -----------------
+1996        21                                                  3279             1134.58          
+separador 
+----------
+          
+info      
+----------
+=== CHUNKS
+ POR ARCHI
+VO ===    
+archivo     cantidad_chunks                                   
+----------  --------------------------------------------------
+Essential   1996                                              
+Math for D                                                    
+ata Scienc                                                    
+e (Thomas                                                     
+Nield) (Z-                                                    
+Library).p                                                    
+df                                                            
+separador 
+----------
+          
+info      
+----------
+=== TIPOS 
+DE METADAT
+OS DISPONI
+BLES ===  
+tipo_metad  cantidad                                            tipo_valor     
+----------  --------------------------------------------------  ---------------
+total_page  1996                                                integer        
+s                                                                              
+
+source_fol  1996                                                string         
+der                                                                            
+
+page_numbe  1996                                                integer        
+r                                                                              
+
+filename    1996                                                string         
+
+chroma:doc  1996                                                string         
+ument                                                                          
+separador 
+----------
+          
+info      
+----------
+=== MUESTR
+A DE CHUNK
+S (5 prime
+ros) ===  
+chunk_id    texto                                               longitud       
+----------  --------------------------------------------------  ---------------
+1           Praise for Essential Math for Data Science In the   1384           
+            cacophony that is the curr ent data science educat                 
+            ...                                                                
+
+2           Essential Math for Data Science T a k e C o n t r   194            
+            o l o f Y o u r D a t a w i t h F u n d a m e n t                  
+            ...                                                                
+
+3           Essential Math for Data Science by Thomas Nield Co  875            
+            pyright © 2022 Thomas Nield. All rights reserved.                  
+            ...                                                                
+
+4           2022-05-26: First Release See http://oreilly .com/  1098           
+            catalog/errata.csp?isbn=9781098102937 for release                  
+            ...                                                                
+
+5           Preface In the past 10 years or so, there has been  1966           
+             a growing interest in applying math and statistic                 
+            ...                                                                
+
+───────────────────────────────────────────────────────────
+  📄 04_embeddings_quality.sql
+───────────────────────────────────────────────────────────
+
+info                                    
+----------------------------------------
+=== CALIDAD DE EMBEDDINGS ===           
+total_registros                           embeddings_unic  porcentaje_unicidad
+----------------------------------------  ---------------  -------------------
+1996                                      1996             100.0              
+separador                               
+----------------------------------------
+                                        
+info                                    
+----------------------------------------
+=== COMPLETITUD DE DOCUMENTOS ===       
+total_embeddings                          con_documento    sin_documento  porcentaje_completitud
+----------------------------------------  ---------------  -------------  ----------------------
+1996                                      1996             0              100.0                 
+separador                               
+----------------------------------------
+                                        
+info                                    
+----------------------------------------
+=== CHUNKS CON PROBLEMAS POTENCIALES ===
+tipo_problema                             cantidad       
+----------------------------------------  ---------------
+Chunks vacíos                             0              
+Chunks muy cortos (<100 chars)            108            
+Chunks muy largos (>2000 chars)           224            
+separador                               
+----------------------------------------
+                                        
+info                                    
+----------------------------------------
+=== DISTRIBUCIÓN DE LONGITUDES DE CHUNKS
+ ===                                    
+rango_longitud                            cantidad         porcentaje
+----------------------------------------  ---------------  ----------
+0-200 caracteres                          168              8.42      
+200-500 caracteres                        252              12.63     
+500-1000 caracteres                       404              20.24     
+1000-1500 caracteres                      592              29.66     
+Más de 1500 caracteres                    580              29.06     
+separador                               
+----------------------------------------
+                                        
+info                                    
+----------------------------------------
+=== ANÁLISIS DE DUPLICACIÓN ===         
+total_chunks                              chunks_unicos    chunks_duplicados  porcentaje_duplicacion
+----------------------------------------  ---------------  -----------------  ----------------------
+1996                                      499              1497               75.0                  
+
+───────────────────────────────────────────────────────────
+  📄 05_search_examples.sql
+───────────────────────────────────────────────────────────
+
+info      
+----------
+=== BÚSQUE
+DA FULL-TE
+XT: "matri
+x" ===    
+chunk_id    texto                                                                   longitud  
+----------  ----------------------------------------------------------------------  ----------
+16          Y ou encounter this number type when you take the square root of a neg  1298      
+            ative number . While imaginary and complex numbers...                             
+
+168         Chapter 4. Linear Algebra Changing gears a little bit, let’ s venture   1914      
+            away from probability and statistics and into line...                             
+
+190         Figur e 4-13. Basis vectors ˆi and ˆj Think of the basis vectors as bu  226       
+            ilding blocks to build or transform any vector . O...                             
+
+191         ˆi=[1 0] ˆj=[0 1] basis=[10 01] A matrix is a collection of vectors (s  343       
+            uch as ˆi , ˆj ) that can have multiple rows and c...                             
+
+196         Figur e 4-16. Four movements can be achieved with linear transformatio  1187      
+            ns These four linear transformations are a central...                             
+separador 
+----------
+          
+info      
+----------
+=== BÚSQUE
+DA FULL-TE
+XT: "calcu
+lus OR der
+ivative" =
+==        
+chunk_id    texto                                                                   longitud  
+----------  ----------------------------------------------------------------------  ----------
+1           Praise for Essential Math for Data Science In the cacophony that is th  1384      
+            e curr ent data science education landscape, this ...                             
+
+6           W e no longer solely use the internet on a desktop or laptop computer   2352      
+            . W e now take it with us in our smartphones, cars...                             
+
+7           problems. The first four chapters cover foundational math concepts inc  1984      
+            luding practical calculus, probability , linear al...                             
+
+11          Email bookquestions@or eilly .com to comment or ask technical question  1719      
+            s about this book. For news and information about ...                             
+
+13          Chapter 1. Basic Math and Calculus Review W e will kick of f the first  1635      
+             chapter covering what numbers are and how variabl...                             
+separador 
+----------
+          
+info      
+----------
+=== BÚSQUE
+DA: "linea
+r algebra"
+ ===      
+chunk_id    texto                                                                   longitud  
+----------  ----------------------------------------------------------------------  ----------
+1           Praise for Essential Math for Data Science In the cacophony that is th  1384      
+            e curr ent data science education landscape, this ...                             
+
+6           W e no longer solely use the internet on a desktop or laptop computer   2352      
+            . W e now take it with us in our smartphones, cars...                             
+
+7           problems. The first four chapters cover foundational math concepts inc  1984      
+            luding practical calculus, probability , linear al...                             
+
+13          Chapter 1. Basic Math and Calculus Review W e will kick of f the first  1635      
+             chapter covering what numbers are and how variabl...                             
+
+48          T H E P O W E R O F S Y M P Y SymPy is a powerful and fantastic comput  1798      
+            er algebra system (CAS) for Python that uses exact...                             
+separador 
+----------
+          
+info      
+----------
+=== BÚSQUE
+DA: "proba
+bility" ==
+=         
+chunk_id    texto                                                                   longitud  
+----------  ----------------------------------------------------------------------  ----------
+6           W e no longer solely use the internet on a desktop or laptop computer   2352      
+            . W e now take it with us in our smartphones, cars...                             
+
+7           problems. The first four chapters cover foundational math concepts inc  1984      
+            luding practical calculus, probability , linear al...                             
+
+13          Chapter 1. Basic Math and Calculus Review W e will kick of f the first  1635      
+             chapter covering what numbers are and how variabl...                             
+
+61          # derivative for first function # need to underscore y to prevent vari  1551      
+            able clash _y = x**2 + 1 dy_dx = diff(_y) # deriva...                             
+
+70          Here we determine the length of each rectangle delta_x and the start o  1375      
+            f each rectangle x_i where i is the index of each ...                             
+separador 
+----------
+          
+info      
+----------
+=== MUESTR
+A DE METAD
+ATOS COMPL
+ETOS (3 ch
+unks) === 
+chunk_id    filename                                                                page_numbe  texto_preview                                               
+----------  ----------------------------------------------------------------------  ----------  ------------------------------------------------------------
+27          Essential Math for Data Science (Thomas Nield) (Z-Library).pdf          28          Figur e 1-2. Using SymPy to graph a linear function Example 
+                                                                                                1-8 and Figure 1-3 a...                                     
+
+766         Essential Math for Data Science (Thomas Nield) (Z-Library).pdf          278         Figur e 5-14. A T -distribution with 9 degr ees of fr eedom,
+                                                                                                 as ther e ar e 10 r...                                     
+
+1186        Essential Math for Data Science (Thomas Nield) (Z-Library).pdf          191         Figur e 4-12. Linear dependence in thr ee dimensions; note o
+                                                                                                ur span is limited t...                                     
+
+═══════════════════════════════════════════════════════════════
+  FIN DEL REPORTE
+═══════════════════════════════════════════════════════════════
