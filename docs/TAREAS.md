@@ -17,17 +17,18 @@
   - **Dificultad:** EASY
   - *Detalle:* `git init`, `venv`, `requirements.txt` (langchain, chromadb, pypdf, openai).
 
-- [ ] **Script ETL: Extracción de Texto (PDFs)**
+- [X] **Script ETL: Extracción de Texto (PDFs)**
   - **Dificultad:** MEDIUM
   - *Detalle:* Crear script que recorra una carpeta, lea PDFs y limpie caracteres extraños (saltos de línea, cabeceras repetitivas).
 
-- [ ] **Implementación de Chunking Inteligente**
+- [X] **Implementación de Chunking Inteligente**
   - **Dificultad:** MEDIUM
   - *Detalle:* Configurar `RecursiveCharacterTextSplitter`. No cortar frases a la mitad. Experimentar con chunk_size (ej. 1000 tokens).
 
-- [ ] **Vectorización (Embeddings)**
+- [X] **Vectorización (Embeddings)**
   - **Dificultad:** MEDIUM
   - *Detalle:* Convertir texto a vectores y guardarlos en `ChromaDB` (local). Persistencia de datos en disco.
+  - *Completado:* 2026-02-12. Implementado con Sentence Transformers (paraphrase-multilingual-mpnet-base-v2). Ver `docs/EMBEDDINGS_GUIDE.md`
 
 - [ ] **Metadatos Estructurados**
   - **Dificultad:** HARD

@@ -6,6 +6,10 @@ langchain-openai==0.0.6
 # Vector Database
 chromadb==0.4.22
 
+# Embeddings & NLP Models
+sentence-transformers==2.5.1
+torch>=2.0.0
+
 # PDF Processing
 pypdf==4.0.1
 
