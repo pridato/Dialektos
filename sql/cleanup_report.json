@@ -1,0 +1,25 @@
+{
+  "metadata": {
+    "timestamp": "2026-02-12T12:35:50.421848",
+    "backup_location": "data/chroma_db_backup_20260212_123549",
+    "chroma_directory": "data/chroma_db"
+  },
+  "original_stats": {
+    "total_chunks": 1996,
+    "unique_chunks": 0,
+    "duplicate_groups": 499,
+    "total_duplicate_chunks": 1996,
+    "chunks_to_remove": 1497,
+    "duplication_rate": 75.0
+  },
+  "deletion_stats": {
+    "removed": 1497,
+    "errors": 0
+  },
+  "verification_stats": {
+    "final_count": 499,
+    "expected_count": 499,
+    "matches_expected": true
+  },
+  "success": true
+}

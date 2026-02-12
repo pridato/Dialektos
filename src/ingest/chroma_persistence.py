@@ -118,6 +118,64 @@ class ChromaDBPersistence:
             raise
     
     
+    def _filter_existing_chunks(
+        self,
+        chunks: List[DocumentChunk],
+        batch_size: int = 100
+    ) -> List[DocumentChunk]:
+        """
+        Filtra chunks que ya existen en la colección.
+        
+        Verifica qué chunks ya están presentes en ChromaDB para evitar
+        duplicados. Útil para hacer el pipeline idempotente.
+        
+        Args:
+            chunks: Lista de chunks a verificar
+            batch_size: Tamaño del batch para consultas (default: 100)
+            
+        Returns:
+            Lista con solo los chunks nuevos (no existentes en DB)
+            
+        Example:
+            >>> chunks = [chunk1, chunk2, chunk3]  # chunk2 ya existe
+            >>> new_chunks = db._filter_existing_chunks(chunks)
+            >>> len(new_chunks)  # 2 (chunk1 y chunk3)
+        """
+        if not chunks:
+            return []
+        
+        existing_ids = set()
+        total_chunks = len(chunks)
+        
+        logger.info(f"🔍 Verificando {total_chunks} chunks contra la base de datos...")
+        
+        # Verificar en batches para eficiencia
+        for i in range(0, total_chunks, batch_size):
+            batch = chunks[i:i + batch_size]
+            batch_ids = [chunk.chunk_id for chunk in batch]
+            
+            try:
+                # Intentar obtener los chunks por ID
+                results = self.collection.get(ids=batch_ids)
+                
+                # Agregar IDs encontrados al conjunto
+                if results and 'ids' in results:
+                    existing_ids.update(results['ids'])
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Error al verificar batch {i//batch_size + 1}: {str(e)}")
+                # En caso de error, asumir que el batch no existe para no perder datos
+                continue
+        
+        # Filtrar chunks que no existen
+        new_chunks = [chunk for chunk in chunks if chunk.chunk_id not in existing_ids]
+        
+        filtered_count = total_chunks - len(new_chunks)
+        logger.info(f"   ✅ Filtrados: {filtered_count} duplicados, {len(new_chunks)} nuevos")
+        
+        return new_chunks
+    
+    
     def _insert_with_retry(
         self, 
         documents: List[str], 
@@ -162,7 +220,8 @@ class ChromaDBPersistence:
         chunks: List[DocumentChunk],
         batch_size: int = 32,
         show_progress: bool = True,
-        max_retries: int = 3
+        max_retries: int = 3,
+        skip_duplicates: bool = True
     ) -> None:
         """
         Añade chunks a ChromaDB con batch processing optimizado.
@@ -170,22 +229,49 @@ class ChromaDBPersistence:
         Esta versión optimizada divide los chunks en batches para mejorar
         la eficiencia y proporciona feedback visual del progreso.
         
+        IMPORTANTE: Por defecto, verifica y omite chunks duplicados para
+        garantizar idempotencia (ejecuciones múltiples no crean duplicados).
+        
         Args:
             chunks: Lista de chunks a persistir
             batch_size: Tamaño del batch (default: 32, óptimo para Sentence Transformers)
             show_progress: Mostrar barra de progreso (default: True)
             max_retries: Intentos de retry por batch (default: 3)
+            skip_duplicates: Si True, omite chunks que ya existen en la colección
+                            para evitar duplicados (default: True, recomendado)
             
         Raises:
             Exception: Si hay errores críticos en la inserción
+            
+        Example:
+            >>> # Ejecución idempotente (recomendado)
+            >>> db.add_chunks(chunks)  # Primera vez: inserta todos
+            >>> db.add_chunks(chunks)  # Segunda vez: no inserta nada (ya existen)
+            
+            >>> # Forzar inserción sin verificación (no recomendado)
+            >>> db.add_chunks(chunks, skip_duplicates=False)
         """
         if not chunks:
             logger.warning("⚠️ No hay chunks para agregar a ChromaDB")
             return
         
+        original_count = len(chunks)
+        
+        # Filtrar duplicados si está habilitado
+        if skip_duplicates:
+            chunks = self._filter_existing_chunks(chunks)
+            
+            if not chunks:
+                logger.info("✅ Todos los chunks ya existen en la base de datos. No hay nada que insertar.")
+                logger.info(f"   Pipeline idempotente: {original_count} chunks verificados, 0 insertados")
+                return
+        
         logger.info(f"📥 Insertando {len(chunks)} chunks en ChromaDB...")
         logger.info(f"   - Batch size: {batch_size}")
         logger.info(f"   - Total batches: {(len(chunks) + batch_size - 1) // batch_size}")
+        
+        if skip_duplicates and len(chunks) < original_count:
+            logger.info(f"   - Chunks omitidos (duplicados): {original_count - len(chunks)}")
         
         # Dividir en batches
         batches = [chunks[i:i+batch_size] for i in range(0, len(chunks), batch_size)]

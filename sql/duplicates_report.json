@@ -1,0 +1,21 @@
+{
+  "metadata": {
+    "generated_at": "2026-02-12T12:35:55.848191",
+    "database_path": "data/chroma_db/chroma.sqlite3",
+    "analysis_type": "content_based_deduplication"
+  },
+  "statistics": {
+    "total_chunks": 499,
+    "unique_chunks": 499,
+    "duplicate_groups": 0,
+    "total_duplicate_chunks": 0,
+    "chunks_to_remove": 0,
+    "duplication_rate": 0.0
+  },
+  "duplicate_groups": [],
+  "summary": {
+    "total_ids_to_remove": 0,
+    "total_ids_to_keep": 0,
+    "space_savings_estimate": "0.0%"
+  }
+}

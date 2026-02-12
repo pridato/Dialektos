@@ -301,12 +301,151 @@ prompt = f"Contexto:\n{' '.join(context)}\n\nPregunta: {user_query}"
 # Enviar prompt al LLM...
 ```
 
+## 🛡️ Prevención de Duplicados
+
+El sistema implementa múltiples mecanismos para prevenir la creación de chunks duplicados, garantizando **idempotencia**: ejecutar el pipeline múltiples veces no crea duplicados.
+
+### Generación Determinista de IDs
+
+Los `chunk_id` se generan automáticamente usando un hash SHA-256 del contenido textual:
+
+```python
+# En src/ingest/models.py
+# ID generado SOLO del texto (sin metadata)
+normalized_text = text.strip()
+content_hash = hashlib.sha256(normalized_text.encode('utf-8')).hexdigest()
+chunk_id = content_hash[:16]  # Primeros 16 caracteres
+```
+
+**Ventajas**:
+- ✅ Mismo texto = Mismo ID (determinista)
+- ✅ Independiente de metadatos (página, archivo, etc.)
+- ✅ Predecible y reproducible
+- ✅ ChromaDB sobrescribe automáticamente si el ID ya existe
+
+### Verificación Automática de Duplicados
+
+Por defecto, `add_chunks()` verifica qué chunks ya existen antes de insertar:
+
+```python
+# Inserción idempotente (recomendado)
+db.add_chunks(chunks)  # Primera vez: inserta todos
+db.add_chunks(chunks)  # Segunda vez: no inserta nada
+
+# Forzar inserción sin verificación (no recomendado)
+db.add_chunks(chunks, skip_duplicates=False)
+```
+
+**Comportamiento**:
+1. Verifica IDs existentes en batches (eficiente)
+2. Filtra chunks que ya están en la base de datos
+3. Inserta solo chunks nuevos
+4. Registra estadísticas de duplicados encontrados
+
+### Limpieza de Duplicados Existentes
+
+Si detectas duplicados en tu base de datos actual:
+
+```bash
+# 1. Detectar duplicados
+python sql/detect_duplicates.py
+# Genera: sql/duplicates_report.json
+
+# 2. Revisar reporte
+cat sql/duplicates_report.json
+
+# 3. Crear backup (IMPORTANTE)
+cp -r data/chroma_db data/chroma_db.backup
+
+# 4. Ejecutar limpieza
+python sql/cleanup_duplicates.py
+# Solicita confirmación y crea backup automático
+```
+
+**Estrategia de limpieza**:
+- Identifica grupos de chunks con contenido idéntico
+- Mantiene el primer chunk de cada grupo (más antiguo)
+- Elimina el resto usando `collection.delete()`
+- Genera reporte post-limpieza con métricas
+
+### Testing de Idempotencia
+
+Valida que el sistema funciona correctamente:
+
+```bash
+# Ejecutar tests
+python tests/test_no_duplicates.py
+
+# Con pytest (si instalado)
+pytest tests/test_no_duplicates.py -v
+```
+
+**Tests incluidos**:
+- ✅ Generación determinista de IDs
+- ✅ Filtrado de chunks existentes
+- ✅ Inserción idempotente (múltiples ejecuciones)
+- ✅ Overlapping parcial
+
+### Mejores Prácticas
+
+1. **Usa el comportamiento por defecto**: `skip_duplicates=True`
+2. **No modifiques chunk_id manualmente**: Deja que se genere automáticamente
+3. **Ejecuta limpieza después de migraciones**: Si cambias el modelo de chunking
+4. **Monitorea duplicados**: Ejecuta `detect_duplicates.py` periódicamente
+5. **Mantén backups**: Antes de operaciones de limpieza
+
+### Métricas de Éxito
+
+| Métrica | Objetivo |
+|---------|----------|
+| Tasa de duplicación | < 5% |
+| Tiempo de verificación | < 3s por 500 chunks |
+| Re-ejecuciones | 0 chunks insertados |
+| Tests de idempotencia | 100% pasados |
+
+### Troubleshooting
+
+**Problema**: Aún se crean duplicados después de la actualización
+
+**Solución**:
+```python
+# Verificar que estás usando el nuevo código
+from src.ingest.models import DocumentChunk
+chunk = DocumentChunk(text="test", chunk_index=0, total_chunks=1, metadata=...)
+print(f"ID generado automáticamente: {chunk.chunk_id}")
+
+# Si el ID está vacío o tiene formato diferente, regenera chunks
+```
+
+**Problema**: La verificación es muy lenta
+
+**Solución**:
+```python
+# Reducir batch_size de verificación
+db._filter_existing_chunks(chunks, batch_size=50)  # Default: 100
+```
+
+**Problema**: Quiero forzar re-inserción completa
+
+**Solución**:
+```python
+# Opción 1: Reiniciar colección (elimina todo)
+db.reset_collection()
+db.add_chunks(chunks)
+
+# Opción 2: Desactivar verificación temporalmente
+db.add_chunks(chunks, skip_duplicates=False)
+```
+
+---
+
 ## 📝 Próximos Pasos
 
 1. ✅ Vectorización implementada
-2. ⏳ **Siguiente**: Retrieval System (Módulo 2)
-3. ⏳ Metadatos estructurados (asignatura, tipo, fecha)
-4. ⏳ Integración con LLM
+2. ✅ Prevención de duplicados implementada
+3. ⏳ **Siguiente**: Retrieval System (Módulo 2)
+4. ⏳ Metadatos estructurados (asignatura, tipo, fecha)
+5. ⏳ Integración con LLM
 
 ## 🤝 Contribuciones
 

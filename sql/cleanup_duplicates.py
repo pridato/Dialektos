@@ -1,296 +1,370 @@
 #!/usr/bin/env python3
 """
-Script de Limpieza de Duplicados - ChromaDB Dialektos
+Script de Limpieza de Chunks Duplicados en ChromaDB
 
-Este script identifica y elimina chunks duplicados de la base de datos ChromaDB,
-manteniendo solo la primera ocurrencia de cada chunk único.
+Lee el reporte generado por detect_duplicates.py y elimina los chunks
+duplicados de forma segura, manteniendo solo el primer registro de cada grupo.
 
-IMPORTANTE: Hacer backup antes de ejecutar!
+IMPORTANTE: Este script modifica la base de datos. Asegúrate de tener un backup.
 
+Uso:
+    python sql/cleanup_duplicates.py
+    
+Prerrequisitos:
+    - Ejecutar primero: python sql/detect_duplicates.py
+    - Hacer backup: cp -r data/chroma_db data/chroma_db.backup
+    
 Autor: David Arroyo
-Proyecto: Dialektos
+Proyecto: Dialektos - Sistema RAG Adaptativo
 """
 
-import sqlite3
+import json
+import shutil
 from pathlib import Path
 from datetime import datetime
-import shutil
+from typing import Dict, List
 import sys
 
-
-def backup_database(db_path: Path) -> Path:
-    """Crear backup de la base de datos antes de modificarla."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = db_path.parent / f"chroma_backup_{timestamp}.sqlite3"
-    
-    print(f"📦 Creando backup en: {backup_path}")
-    shutil.copy2(db_path, backup_path)
-    print(f"✅ Backup completado: {backup_path.stat().st_size / 1024 / 1024:.2f} MB")
-    
-    return backup_path
+# Importar ChromaDB para eliminar de forma segura
+try:
+    import chromadb
+    from chromadb.config import Settings
+except ImportError:
+    print("❌ Error: chromadb no está instalado")
+    print("   Instala con: pip install chromadb")
+    sys.exit(1)
 
 
-def analyze_duplicates(conn: sqlite3.Connection) -> dict:
-    """Analizar duplicados en la base de datos."""
-    cursor = conn.cursor()
+class DuplicateCleaner:
+    """Limpiador de chunks duplicados en ChromaDB."""
     
-    # Encontrar duplicados
-    query = """
-    SELECT 
-        string_value as document_text,
-        COUNT(*) as occurrences,
-        MIN(id) as first_id,
-        GROUP_CONCAT(id) as all_ids
-    FROM embedding_metadata
-    WHERE key = 'chroma:document'
-    GROUP BY string_value
-    HAVING COUNT(*) > 1
-    ORDER BY COUNT(*) DESC
+    def __init__(self, chroma_dir: Path, report_path: Path):
+        """
+        Inicializa el limpiador.
+        
+        Args:
+            chroma_dir: Directorio de ChromaDB
+            report_path: Ruta al reporte de duplicados
+        """
+        self.chroma_dir = chroma_dir
+        self.report_path = report_path
+        self.report = None
+        self.client = None
+        self.collection = None
+        
+    def load_report(self) -> Dict:
+        """
+        Carga el reporte de duplicados.
+        
+        Returns:
+            Diccionario con el reporte
+            
+        Raises:
+            FileNotFoundError: Si el reporte no existe
+        """
+        if not self.report_path.exists():
+            raise FileNotFoundError(
+                f"Reporte no encontrado: {self.report_path}\n"
+                "   Ejecuta primero: python sql/detect_duplicates.py"
+            )
+        
+        with open(self.report_path, 'r', encoding='utf-8') as f:
+            self.report = json.load(f)
+        
+        print(f"✅ Reporte cargado: {self.report_path}")
+        return self.report
+    
+    def create_backup(self) -> Path:
+        """
+        Crea un backup del directorio de ChromaDB.
+        
+        Returns:
+            Ruta del backup creado
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_dir = self.chroma_dir.parent / f"chroma_db_backup_{timestamp}"
+        
+        print(f"\n💾 Creando backup...")
+        print(f"   Origen: {self.chroma_dir}")
+        print(f"   Destino: {backup_dir}")
+        
+        shutil.copytree(self.chroma_dir, backup_dir)
+        
+        # Verificar tamaño del backup
+        backup_size = sum(f.stat().st_size for f in backup_dir.rglob('*') if f.is_file())
+        backup_size_mb = backup_size / (1024 * 1024)
+        
+        print(f"✅ Backup creado ({backup_size_mb:.2f} MB)")
+        
+        return backup_dir
+    
+    def connect_to_chromadb(self) -> None:
+        """Conecta a ChromaDB."""
+        print(f"\n🔗 Conectando a ChromaDB...")
+        
+        self.client = chromadb.PersistentClient(
+            path=str(self.chroma_dir),
+            settings=Settings(anonymized_telemetry=False)
+        )
+        
+        # Obtener la colección (asumimos que hay una sola)
+        collections = self.client.list_collections()
+        
+        if not collections:
+            raise ValueError("No se encontraron colecciones en ChromaDB")
+        
+        self.collection = collections[0]
+        print(f"✅ Conectado a colección: {self.collection.name}")
+        print(f"   Chunks actuales: {self.collection.count():,}")
+    
+    def delete_duplicates(self, dry_run: bool = False) -> Dict:
+        """
+        Elimina los chunks duplicados.
+        
+        Args:
+            dry_run: Si es True, solo simula la eliminación sin hacer cambios
+            
+        Returns:
+            Diccionario con estadísticas de la operación
+        """
+        if not self.report:
+            raise ValueError("Reporte no cargado. Llama a load_report() primero.")
+        
+        duplicate_groups = self.report.get("duplicate_groups", [])
+        total_to_remove = self.report["summary"]["total_ids_to_remove"]
+        
+        if total_to_remove == 0:
+            print("\n✅ No hay duplicados para eliminar")
+            return {"removed": 0, "errors": 0}
+        
+        print(f"\n🗑️  {'[DRY RUN] ' if dry_run else ''}Eliminando duplicados...")
+        print(f"   Grupos de duplicados: {len(duplicate_groups)}")
+        print(f"   Chunks a eliminar: {total_to_remove}")
+        
+        # Recopilar todos los IDs a eliminar
+        ids_to_remove = []
+        for group in duplicate_groups:
+            ids_to_remove.extend(group["remove_ids"])
+        
+        print(f"\n   Total de IDs recopilados: {len(ids_to_remove)}")
+        
+        if dry_run:
+            print("\n⚠️  DRY RUN: No se realizarán cambios reales")
+            print(f"   Se eliminarían {len(ids_to_remove)} chunks")
+            return {"removed": 0, "errors": 0, "would_remove": len(ids_to_remove)}
+        
+        # Eliminar en batches para eficiencia
+        batch_size = 100
+        removed_count = 0
+        error_count = 0
+        
+        for i in range(0, len(ids_to_remove), batch_size):
+            batch_ids = ids_to_remove[i:i + batch_size]
+            
+            try:
+                self.collection.delete(ids=batch_ids)
+                removed_count += len(batch_ids)
+                
+                # Actualizar progreso
+                progress = (i + batch_size) / len(ids_to_remove) * 100
+                print(f"   Progreso: {min(progress, 100):.1f}% ({removed_count}/{len(ids_to_remove)})", end='\r')
+                
+            except Exception as e:
+                error_count += len(batch_ids)
+                print(f"\n   ⚠️  Error al eliminar batch {i//batch_size + 1}: {e}")
+        
+        print(f"\n   Progreso: 100.0% ({removed_count}/{len(ids_to_remove)})    ")
+        
+        return {"removed": removed_count, "errors": error_count}
+    
+    def verify_cleanup(self) -> Dict:
+        """
+        Verifica el resultado de la limpieza.
+        
+        Returns:
+            Diccionario con estadísticas post-limpieza
+        """
+        print(f"\n🔍 Verificando limpieza...")
+        
+        # Contar chunks restantes
+        final_count = self.collection.count()
+        expected_count = self.report["statistics"]["unique_chunks"] + self.report["statistics"]["duplicate_groups"]
+        
+        stats = {
+            "final_count": final_count,
+            "expected_count": expected_count,
+            "matches_expected": final_count == expected_count
+        }
+        
+        print(f"   Chunks finales: {final_count:,}")
+        print(f"   Chunks esperados: {expected_count:,}")
+        
+        if stats["matches_expected"]:
+            print(f"   ✅ La limpieza fue exitosa")
+        else:
+            diff = abs(final_count - expected_count)
+            print(f"   ⚠️  Diferencia detectada: {diff} chunks")
+        
+        return stats
+    
+    def generate_cleanup_report(self, backup_path: Path, deletion_stats: Dict, 
+                                 verification_stats: Dict) -> Dict:
+        """
+        Genera un reporte de la operación de limpieza.
+        
+        Args:
+            backup_path: Ruta del backup creado
+            deletion_stats: Estadísticas de eliminación
+            verification_stats: Estadísticas de verificación
+            
+        Returns:
+            Diccionario con el reporte completo
+        """
+        report = {
+            "metadata": {
+                "timestamp": datetime.now().isoformat(),
+                "backup_location": str(backup_path),
+                "chroma_directory": str(self.chroma_dir)
+            },
+            "original_stats": self.report["statistics"],
+            "deletion_stats": deletion_stats,
+            "verification_stats": verification_stats,
+            "success": deletion_stats["errors"] == 0 and verification_stats["matches_expected"]
+        }
+        
+        return report
+    
+    def save_cleanup_report(self, report: Dict, output_path: Path) -> None:
+        """
+        Guarda el reporte de limpieza.
+        
+        Args:
+            report: Reporte a guardar
+            output_path: Ruta del archivo de salida
+        """
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(report, f, indent=2, ensure_ascii=False)
+        
+        print(f"\n💾 Reporte de limpieza guardado: {output_path}")
+    
+    def print_summary(self, deletion_stats: Dict, verification_stats: Dict) -> None:
+        """
+        Imprime un resumen de la operación.
+        
+        Args:
+            deletion_stats: Estadísticas de eliminación
+            verification_stats: Estadísticas de verificación
+        """
+        print("\n" + "=" * 80)
+        print("📊 RESUMEN DE LIMPIEZA")
+        print("=" * 80)
+        print(f"Chunks originales:    {self.report['statistics']['total_chunks']:,}")
+        print(f"Chunks eliminados:    {deletion_stats['removed']:,}")
+        print(f"Chunks finales:       {verification_stats['final_count']:,}")
+        print(f"Errores:              {deletion_stats['errors']}")
+        
+        if deletion_stats['errors'] == 0 and verification_stats['matches_expected']:
+            print("\n✅ LIMPIEZA EXITOSA")
+        else:
+            print("\n⚠️  LIMPIEZA CON ADVERTENCIAS - Revisa el reporte detallado")
+        
+        print("=" * 80)
+
+
+def confirm_action() -> bool:
     """
-    
-    cursor.execute(query)
-    duplicates = cursor.fetchall()
-    
-    # Estadísticas
-    total_query = """
-    SELECT COUNT(*) 
-    FROM embedding_metadata 
-    WHERE key = 'chroma:document'
-    """
-    cursor.execute(total_query)
-    total_chunks = cursor.fetchone()[0]
-    
-    unique_query = """
-    SELECT COUNT(DISTINCT string_value) 
-    FROM embedding_metadata 
-    WHERE key = 'chroma:document'
-    """
-    cursor.execute(unique_query)
-    unique_chunks = cursor.fetchone()[0]
-    
-    return {
-        'total_chunks': total_chunks,
-        'unique_chunks': unique_chunks,
-        'duplicate_groups': len(duplicates),
-        'duplicates': duplicates,
-        'chunks_to_remove': total_chunks - unique_chunks
-    }
-
-
-def remove_duplicates(conn: sqlite3.Connection, dry_run: bool = True) -> dict:
-    """
-    Eliminar chunks duplicados manteniendo solo el primero.
-    
-    Args:
-        conn: Conexión a la base de datos
-        dry_run: Si es True, solo muestra qué se eliminaría sin hacerlo
+    Solicita confirmación del usuario antes de proceder.
     
     Returns:
-        Diccionario con estadísticas de la operación
+        True si el usuario confirma, False en caso contrario
     """
-    cursor = conn.cursor()
+    print("\n" + "=" * 80)
+    print("⚠️  ADVERTENCIA: Esta operación modificará la base de datos")
+    print("=" * 80)
+    print("Se eliminará permanentemente el 75% de los chunks duplicados.")
+    print("Se creará un backup automático antes de proceder.")
+    print()
     
-    # Identificar IDs a eliminar (todos excepto el primero de cada grupo)
-    query = """
-    WITH duplicate_groups AS (
-        SELECT 
-            string_value,
-            id,
-            ROW_NUMBER() OVER (PARTITION BY string_value ORDER BY id) as row_num
-        FROM embedding_metadata
-        WHERE key = 'chroma:document'
-    )
-    SELECT id
-    FROM duplicate_groups
-    WHERE row_num > 1
-    """
+    response = input("¿Deseas continuar? (escribe 'SI' para confirmar): ").strip()
     
-    cursor.execute(query)
-    ids_to_remove = [row[0] for row in cursor.fetchall()]
-    
-    if dry_run:
-        print(f"\n🔍 MODO DRY-RUN (simulación)")
-        print(f"   Se eliminarían {len(ids_to_remove)} registros duplicados")
-        print(f"   Mostrando primeros 10 IDs:")
-        for id in ids_to_remove[:10]:
-            print(f"   - ID: {id}")
-        if len(ids_to_remove) > 10:
-            print(f"   ... y {len(ids_to_remove) - 10} más")
-        return {'removed': 0, 'would_remove': len(ids_to_remove)}
-    
-    # Eliminar duplicados
-    print(f"\n🗑️  Eliminando {len(ids_to_remove)} registros duplicados...")
-    
-    removed_count = 0
-    for id in ids_to_remove:
-        # Eliminar de embedding_metadata
-        cursor.execute(
-            "DELETE FROM embedding_metadata WHERE id = ?",
-            (id,)
-        )
-        
-        # Eliminar de embeddings
-        cursor.execute(
-            "DELETE FROM embeddings WHERE id = ?",
-            (id,)
-        )
-        
-        removed_count += 1
-        
-        if removed_count % 100 == 0:
-            print(f"   Progreso: {removed_count}/{len(ids_to_remove)}")
-    
-    conn.commit()
-    
-    return {
-        'removed': removed_count,
-        'would_remove': 0
-    }
-
-
-def vacuum_database(conn: sqlite3.Connection):
-    """Ejecutar VACUUM para recuperar espacio."""
-    print("\n🧹 Optimizando base de datos (VACUUM)...")
-    conn.execute("VACUUM")
-    print("✅ Optimización completada")
-
-
-def generate_cleanup_report(
-    before: dict,
-    after: dict,
-    backup_path: Path,
-    db_path: Path
-) -> str:
-    """Generar reporte de limpieza."""
-    report = f"""
-# 🧹 Reporte de Limpieza de Duplicados - ChromaDB
-
-**Fecha**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-**Base de datos**: {db_path}
-**Backup**: {backup_path}
-
-## Antes de la Limpieza
-- Total de chunks: {before['total_chunks']:,}
-- Chunks únicos: {before['unique_chunks']:,}
-- Grupos de duplicados: {before['duplicate_groups']:,}
-- Chunks a eliminar: {before['chunks_to_remove']:,}
-- Porcentaje de duplicación: {(before['chunks_to_remove']/before['total_chunks']*100):.2f}%
-
-## Después de la Limpieza
-- Total de chunks: {after['total_chunks']:,}
-- Chunks únicos: {after['unique_chunks']:,}
-- Registros eliminados: {before['total_chunks'] - after['total_chunks']:,}
-- Reducción: {((before['total_chunks'] - after['total_chunks'])/before['total_chunks']*100):.2f}%
-
-## Tamaños de Archivo
-- Tamaño antes: {backup_path.stat().st_size / 1024 / 1024:.2f} MB
-- Tamaño después: {db_path.stat().st_size / 1024 / 1024:.2f} MB
-- Espacio recuperado: {(backup_path.stat().st_size - db_path.stat().st_size) / 1024 / 1024:.2f} MB
-
-## Estado
-✅ Limpieza completada exitosamente
-
-## Próximos Pasos
-1. Verificar integridad de la BD
-2. Re-ejecutar análisis de calidad
-3. Probar búsquedas RAG
-
----
-**Generado por**: cleanup_duplicates.py
-"""
-    return report
+    return response.upper() == "SI"
 
 
 def main():
     """Función principal."""
-    print("=" * 60)
-    print("🧹 Script de Limpieza de Duplicados - ChromaDB Dialektos")
-    print("=" * 60)
+    print("=" * 80)
+    print("🗑️  LIMPIEZA DE DUPLICADOS EN CHROMADB")
+    print("=" * 80)
     
     # Configuración
-    db_path = Path("data/chroma_db/chroma.sqlite3")
-    reports_dir = Path("sql/reports")
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Verificar BD
-    if not db_path.exists():
-        print(f"❌ Error: Base de datos no encontrada en {db_path}")
-        sys.exit(1)
-    
-    # Modo de ejecución
-    dry_run = "--execute" not in sys.argv
-    
-    if dry_run:
-        print("\n⚠️  MODO DRY-RUN (simulación)")
-        print("   No se realizarán cambios en la base de datos")
-        print("   Para ejecutar realmente, usa: python cleanup_duplicates.py --execute")
-    else:
-        print("\n⚠️  MODO EJECUCIÓN")
-        print("   Se eliminarán duplicados permanentemente")
-        response = input("   ¿Continuar? (sí/no): ")
-        if response.lower() not in ['sí', 'si', 'yes', 's', 'y']:
-            print("❌ Operación cancelada")
-            sys.exit(0)
-    
-    # Conectar
-    print(f"\n📊 Conectando a: {db_path}")
-    conn = sqlite3.connect(db_path)
+    CHROMA_DIR = Path("data/chroma_db")
+    REPORT_PATH = Path("sql/duplicates_report.json")
+    CLEANUP_REPORT_PATH = Path("sql/cleanup_report.json")
     
     try:
-        # Analizar estado actual
-        print("\n🔍 Analizando duplicados...")
-        before = analyze_duplicates(conn)
+        # Inicializar limpiador
+        cleaner = DuplicateCleaner(CHROMA_DIR, REPORT_PATH)
         
-        print(f"\n📈 Estado actual:")
-        print(f"   Total de chunks: {before['total_chunks']:,}")
-        print(f"   Chunks únicos: {before['unique_chunks']:,}")
-        print(f"   Grupos de duplicados: {before['duplicate_groups']:,}")
-        print(f"   Chunks duplicados: {before['chunks_to_remove']:,}")
-        print(f"   Porcentaje duplicación: {(before['chunks_to_remove']/before['total_chunks']*100):.2f}%")
+        # Cargar reporte de duplicados
+        cleaner.load_report()
         
-        # Crear backup si no es dry-run
-        backup_path = None
-        if not dry_run:
-            conn.close()
-            backup_path = backup_database(db_path)
-            conn = sqlite3.connect(db_path)
+        # Mostrar estadísticas
+        stats = cleaner.report["statistics"]
+        print(f"\n📊 Estadísticas del reporte:")
+        print(f"   Total de chunks: {stats['total_chunks']:,}")
+        print(f"   Chunks a eliminar: {stats['chunks_to_remove']:,}")
+        print(f"   Tasa de duplicación: {stats['duplication_rate']:.1f}%")
+        
+        if stats['chunks_to_remove'] == 0:
+            print("\n✅ No hay duplicados para eliminar")
+            return
+        
+        # Solicitar confirmación
+        if not confirm_action():
+            print("\n❌ Operación cancelada por el usuario")
+            return
+        
+        # Crear backup
+        backup_path = cleaner.create_backup()
+        
+        # Conectar a ChromaDB
+        cleaner.connect_to_chromadb()
         
         # Eliminar duplicados
-        result = remove_duplicates(conn, dry_run=dry_run)
+        deletion_stats = cleaner.delete_duplicates(dry_run=False)
         
-        if not dry_run:
-            # Vacuum
-            vacuum_database(conn)
-            
-            # Analizar después
-            print("\n📊 Analizando estado final...")
-            after = analyze_duplicates(conn)
-            
-            print(f"\n✅ Resultado:")
-            print(f"   Registros eliminados: {result['removed']:,}")
-            print(f"   Chunks finales: {after['total_chunks']:,}")
-            print(f"   Reducción: {((before['total_chunks'] - after['total_chunks'])/before['total_chunks']*100):.2f}%")
-            
-            # Generar reporte
-            report = generate_cleanup_report(before, after, backup_path, db_path)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            report_path = reports_dir / f"cleanup_report_{timestamp}.md"
-            report_path.write_text(report, encoding='utf-8')
-            
-            print(f"\n📄 Reporte guardado en: {report_path}")
-            print(f"💾 Backup guardado en: {backup_path}")
-            print("\n✅ Limpieza completada exitosamente!")
-        else:
-            print(f"\n💡 Para ejecutar la limpieza real:")
-            print(f"   python {Path(__file__).name} --execute")
-    
+        # Verificar limpieza
+        verification_stats = cleaner.verify_cleanup()
+        
+        # Generar reporte de limpieza
+        cleanup_report = cleaner.generate_cleanup_report(
+            backup_path, deletion_stats, verification_stats
+        )
+        
+        # Guardar reporte
+        cleaner.save_cleanup_report(cleanup_report, CLEANUP_REPORT_PATH)
+        
+        # Mostrar resumen
+        cleaner.print_summary(deletion_stats, verification_stats)
+        
+        # Información del backup
+        print("\n" + "=" * 80)
+        print("📦 BACKUP")
+        print("=" * 80)
+        print(f"Ubicación: {backup_path}")
+        print("Para restaurar (si necesario):")
+        print(f"  rm -rf {CHROMA_DIR}")
+        print(f"  cp -r {backup_path} {CHROMA_DIR}")
+        print("=" * 80)
+        
+    except FileNotFoundError as e:
+        print(f"\n❌ Error: {e}")
     except Exception as e:
-        print(f"\n❌ Error durante la limpieza: {e}")
+        print(f"\n❌ Error inesperado: {e}")
         import traceback
         traceback.print_exc()
-        sys.exit(1)
-    finally:
-        conn.close()
+        print("\n⚠️  Si algo salió mal, restaura el backup:")
+        print(f"   Busca el backup más reciente en: {CHROMA_DIR.parent}/chroma_db_backup_*")
 
 
 if __name__ == "__main__":

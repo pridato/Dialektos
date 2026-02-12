@@ -13,6 +13,7 @@ Autor: David Arroyo
 Proyecto: Dialektos - Sistema RAG Adaptativo
 """
 
+import hashlib
 from pydantic import BaseModel, Field, validator
 
 
@@ -72,8 +73,14 @@ class DocumentChunk(BaseModel):
     - Tiene un tamaño óptimo para modelos de embeddings (~1000 tokens)
     - Mantiene contexto mediante solapamiento con chunks adyacentes
     
+    IMPORTANTE: El chunk_id se genera automáticamente usando un hash SHA-256
+    del contenido textual. Esto garantiza que:
+    - Mismo texto = Mismo ID (determinista)
+    - Ejecuciones múltiples no crean duplicados
+    - Es idempotente y predecible
+    
     Attributes:
-        chunk_id: UUID único para identificación en ChromaDB
+        chunk_id: ID único generado automáticamente del hash del texto
         text: Texto del fragmento (limpio y continuo)
         chunk_index: Posición del chunk dentro del documento (0-indexed)
         total_chunks: Total de chunks generados del documento original
@@ -81,7 +88,7 @@ class DocumentChunk(BaseModel):
         char_count: Número de caracteres del chunk
         token_count: Número aproximado de tokens (4 chars ≈ 1 token)
     """
-    chunk_id: str = Field(..., description="UUID único del chunk")
+    chunk_id: str = Field(default="", description="ID único del chunk (generado automáticamente)")
     text: str = Field(..., min_length=10, description="Texto del chunk")
     chunk_index: int = Field(..., ge=0, description="Índice del chunk")
     total_chunks: int = Field(..., ge=1, description="Total de chunks del documento")
@@ -90,7 +97,18 @@ class DocumentChunk(BaseModel):
     token_count: int = Field(default=0, ge=0)
     
     def __init__(self, **data):
+        # Generar chunk_id si no se proporciona
+        if not data.get('chunk_id'):
+            text = data.get('text', '')
+            # Hash SOLO del contenido textual (sin metadata) para idempotencia
+            # Normalizamos el texto para evitar variaciones por espacios
+            normalized_text = text.strip()
+            content_hash = hashlib.sha256(normalized_text.encode('utf-8')).hexdigest()
+            # Usar primeros 16 caracteres para IDs más cortos pero únicos
+            data['chunk_id'] = content_hash[:16]
+        
         super().__init__(**data)
+        
         # Auto-calcular métricas si no se proporcionan
         if self.char_count == 0:
             self.char_count = len(self.text)
