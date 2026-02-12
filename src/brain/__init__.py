@@ -14,6 +14,13 @@ Proyecto: Dialektos - Sistema RAG Adaptativo
 from .llm_client import query_llm, query_llm_with_history
 from .memory import ConversationMemory, ChatMessage
 from .retriever import Retriever, RAGResponse, RetrievedChunk
+from .adversary import (
+    QuestionType,
+    AdversaryState,
+    QuestionAnalyzer,
+    AdversaryPromptBuilder,
+    AdversarySession,
+)
 
 __all__ = [
     "query_llm",
@@ -23,4 +30,9 @@ __all__ = [
     "Retriever",
     "RAGResponse",
     "RetrievedChunk",
+    "QuestionType",
+    "AdversaryState",
+    "QuestionAnalyzer",
+    "AdversaryPromptBuilder",
+    "AdversarySession",
 ]

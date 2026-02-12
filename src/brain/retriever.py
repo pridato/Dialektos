@@ -28,6 +28,7 @@ from src.ingest.chroma_persistence import ChromaDBPersistence
 from src.brain.llm_client import query_llm, query_llm_with_history
 from src.brain.memory import ConversationMemory
 from src.brain.user_profile import build_enriched_system_prompt
+from src.brain.adversary import AdversarySession, QuestionType
 
 
 logger = logging.getLogger(__name__)
@@ -73,12 +74,19 @@ class RAGResponse(BaseModel):
         had_context: True si se encontraron chunks relevantes.
         query: Pregunta original del usuario.
         n_chunks_retrieved: Número de chunks inyectados al prompt.
+        question_type: Tipo de pregunta detectado (CONCEPTUAL, FACTUAL, PROCEDURAL).
+        adversary_activated: True si se activó el modo adversario para esta pregunta.
+        adversary_depth: Profundidad actual del cuestionamiento socrático (0-5).
+            Solo tiene valor si adversary_activated es True.
     """
     answer: str
     sources: List[RetrievedChunk] = Field(default_factory=list)
     had_context: bool = False
     query: str = ""
     n_chunks_retrieved: int = Field(default=0, ge=0)
+    question_type: Optional[QuestionType] = None
+    adversary_activated: bool = False
+    adversary_depth: Optional[int] = Field(default=None, ge=0, le=5)
 
 
 # ─── Configuración RAG ──────────────────────────────────────
@@ -94,8 +102,10 @@ RAG_SYSTEM_PROMPT: str = (
     "respondes en ESPAÑOL.\n"
     "2. BASA tu respuesta en la información del contexto proporcionado. "
     "Sintetiza, traduce y explica el contenido de los fragmentos.\n"
-    "3. Si el contexto proporcionado NO tiene relación alguna con la "
-    "pregunta, responde: 'No tengo información en tus apuntes sobre esto.'\n"
+    "3. Si el contexto proporcionado tiene ALGUNA relación con la pregunta "
+    "(aunque sea tangencial o parcial), intenta responder usando ese contexto. "
+    "Solo responde 'No tengo información en tus apuntes sobre esto.' si el "
+    "contexto es completamente irrelevante o no tiene ninguna conexión con la pregunta.\n"
     "4. NO inventes datos ni cifras que no aparezcan en el contexto.\n"
     "5. Cita la fuente (archivo y página) cuando sea posible.\n"
     "6. Sé claro, riguroso y pedagógico."
@@ -153,6 +163,7 @@ class Retriever:
         self,
         db: Optional[ChromaDBPersistence] = None,
         max_turns: int = 5,
+        adversary_enabled: bool = True,
     ) -> None:
         """
         Inicializa el Retriever con una conexión a ChromaDB y memoria.
@@ -163,12 +174,19 @@ class Retriever:
                 explícita es útil para testing o configuraciones custom.
             max_turns: Número máximo de turnos de conversación a retener
                 en memoria (default: 5).
+            adversary_enabled: Si se debe activar el modo adversario para
+                preguntas conceptuales (default: True).
         """
         self.db: ChromaDBPersistence = db or ChromaDBPersistence()
         self.memory: ConversationMemory = ConversationMemory(
             max_turns=max_turns,
         )
-        logger.info("Retriever inicializado con memoria conversacional")
+        self.adversary_enabled: bool = adversary_enabled
+        self.adversary_session: AdversarySession = AdversarySession()
+        logger.info(
+            f"Retriever inicializado con memoria conversacional "
+            f"(adversario: {'activado' if adversary_enabled else 'desactivado'})"
+        )
 
     @staticmethod
     def _format_context(chunks: List[Dict[str, Any]]) -> str:
@@ -254,38 +272,41 @@ class Retriever:
 
     def clear_memory(self) -> None:
         """
-        Reinicia el historial de conversación.
+        Reinicia el historial de conversación y la sesión adversaria.
 
         Útil para iniciar una nueva sesión de estudio sin arrastrar
         contexto de preguntas anteriores.
         """
         self.memory.clear()
-        logger.info("Memoria conversacional reiniciada")
+        self.adversary_session.reset()
+        logger.info("Memoria conversacional y sesión adversaria reiniciadas")
 
     def retrieve_and_query(
         self,
         pregunta: str,
         *,
         n_chunks: int = 3,
-        min_similarity: float = 0.4,
+        min_similarity: float = 0.25,
+        adversary_mode: Optional[bool] = None,
     ) -> RAGResponse:
         """
         Busca contexto en ChromaDB y consulta al LLM con él.
 
-        Flujo completo con memoria conversacional:
-            0. Si hay historial, reescribe la query (query rewriting).
-            1. Búsqueda semántica en ChromaDB (top ``n_chunks``).
-            2. Si no hay resultados: retorna respuesta de rechazo.
-            3. Si hay resultados: formatea contexto, construye prompt
-               enriquecido, consulta al LLM con historial.
-            4. Empaqueta todo en un ``RAGResponse`` validado.
-            5. Guarda el turno en memoria.
+        Flujo completo con memoria conversacional y modo adversario:
+            0. Si el modo adversario está activo y hay una sesión activa,
+               evaluar si se debe proporcionar contexto o continuar cuestionando.
+            1. Si es una nueva pregunta conceptual, activar modo adversario.
+            2. Si es factual/procedural o el adversario decide proporcionar contexto,
+               buscar en ChromaDB y responder normalmente.
+            3. Si el modo adversario está activo, generar pregunta socrática.
 
         Args:
             pregunta: La pregunta del usuario en texto plano.
             n_chunks: Número máximo de chunks a recuperar (default: 3).
             min_similarity: Umbral mínimo de similitud coseno (0-1).
-                Chunks con score inferior se descartan (default: 0.4).
+                Chunks con score inferior se descartan (default: 0.25).
+            adversary_mode: Si se debe usar el modo adversario para esta consulta.
+                Si es None, usa la configuración del Retriever (default: None).
 
         Returns:
             RAGResponse con la respuesta, fuentes y metadatos del proceso.
@@ -302,17 +323,114 @@ class Retriever:
         if not pregunta or not pregunta.strip():
             raise ValueError("La pregunta no puede estar vacía.")
 
-        logger.info(f"RAG query: '{pregunta[:80]}...'")
+        # Determinar si el modo adversario está activo para esta consulta
+        use_adversary: bool = (
+            adversary_mode
+            if adversary_mode is not None
+            else self.adversary_enabled
+        )
 
-        # ── 0. Query rewriting (si hay historial) ────────────
+        logger.info(
+            f"RAG query: '{pregunta[:80]}...' (adversario: {use_adversary})")
+
+        # ── 0. Análisis del tipo de pregunta (siempre se hace para metadata) ──
+        detected_question_type: QuestionType = (
+            self.adversary_session.analyzer.analyze_question(pregunta)
+        )
+
+        # ── 1. Manejo del modo adversario ──────────────────────
         history: List[Dict[str, str]] = self.memory.get_messages()
+        should_reset_adversary: bool = False
+        adversary_activated: bool = False
+        adversary_depth: Optional[int] = None
+
+        # Si hay una sesión adversaria activa, evaluar si es una respuesta del usuario
+        if use_adversary and self.adversary_session.state.is_active:
+            # Esta es una respuesta del usuario a una pregunta socrática previa
+            adversary_activated = True
+            adversary_depth = self.adversary_session.state.question_depth + 1
+            self.adversary_session.add_user_response(pregunta)
+
+            # Evaluar si se debe proporcionar contexto ahora
+            if self.adversary_session.should_provide_context():
+                logger.info(
+                    "Usuario demostró comprensión o alcanzó profundidad máxima. "
+                    "Proporcionando contexto RAG."
+                )
+                # Continuar con búsqueda RAG normal (más abajo)
+                # Resetear sesión adversaria después de proporcionar contexto
+                should_reset_adversary = True
+            else:
+                # Continuar cuestionando
+                logger.info(
+                    f"Continuando cuestionamiento socrático "
+                    f"(profundidad: {self.adversary_session.state.question_depth})"
+                )
+                socratic_question: str = (
+                    self.adversary_session.generate_socratic_question(pregunta)
+                )
+
+                # Guardar en memoria
+                self.memory.add_user_message(pregunta)
+                self.memory.add_assistant_message(socratic_question)
+
+                return RAGResponse(
+                    answer=socratic_question,
+                    sources=[],
+                    had_context=False,
+                    query=pregunta,
+                    n_chunks_retrieved=0,
+                    question_type=detected_question_type,
+                    adversary_activated=True,
+                    adversary_depth=self.adversary_session.state.question_depth,
+                )
+
+        # ── 2. Análisis de tipo de pregunta (si no hay sesión activa) ────
+        elif use_adversary and not self.adversary_session.state.is_active:
+            # Nueva entrada: analizar si es conceptual o afirmación
+            if self.adversary_session.should_activate(pregunta):
+                # Es conceptual o afirmación: activar modo adversario
+                adversary_activated = True
+                adversary_depth = 1
+                if detected_question_type == QuestionType.ASSERTION:
+                    logger.info(
+                        "⚠️  AFIRMACIÓN peligrosa detectada. Activando modo adversario "
+                        "para romper simplificaciones y profundizar conocimiento."
+                    )
+                else:
+                    logger.info(
+                        "Pregunta conceptual detectada. Activando modo adversario.")
+                socratic_question: str = (
+                    self.adversary_session.generate_socratic_question(pregunta)
+                )
+
+                # Guardar en memoria
+                self.memory.add_user_message(pregunta)
+                self.memory.add_assistant_message(socratic_question)
+
+                return RAGResponse(
+                    answer=socratic_question,
+                    sources=[],
+                    had_context=False,
+                    query=pregunta,
+                    n_chunks_retrieved=0,
+                    question_type=detected_question_type,
+                    adversary_activated=True,
+                    adversary_depth=1,
+                )
+            # Si no es conceptual, continuar con RAG normal
+
+        # ── 2. Query rewriting (si hay historial y no es modo adversario) ──
         search_query: str = pregunta
 
-        if not self.memory.is_first_turn:
+        if not self.memory.is_first_turn and not (
+            use_adversary and self.adversary_session.state.is_active
+        ):
             search_query = self._rewrite_query(pregunta, history)
-            logger.info(f"  Query reescrita para búsqueda: '{search_query[:80]}'")
+            logger.info(
+                f"  Query reescrita para búsqueda: '{search_query[:80]}'")
 
-        # ── 1. Búsqueda semántica ────────────────────────────
+        # ── 4. Búsqueda semántica en ChromaDB ────────────────────
         chunks: List[Dict[str, Any]] = self.db.semantic_search(
             query=search_query,
             n_results=n_chunks,
@@ -321,35 +439,57 @@ class Retriever:
 
         logger.info(f"  Chunks recuperados: {len(chunks)}")
 
-        # ── 2. Sin contexto → rechazo estricto ───────────────
+        # ── 5. Sin contexto → rechazo estricto ──────────────────────
         if not chunks:
-            logger.warning("  Sin contexto relevante. Respondiendo con rechazo.")
+            logger.warning(
+                "  Sin contexto relevante. Respondiendo con rechazo.")
             # Guardar en memoria incluso sin contexto (para continuidad)
             self.memory.add_user_message(pregunta)
             self.memory.add_assistant_message(NO_CONTEXT_MESSAGE)
+
+            # Resetear adversario si estaba activo
+            if should_reset_adversary:
+                self.adversary_session.reset()
+
             return RAGResponse(
                 answer=NO_CONTEXT_MESSAGE,
                 sources=[],
                 had_context=False,
                 query=pregunta,
                 n_chunks_retrieved=0,
+                question_type=detected_question_type,
+                adversary_activated=adversary_activated,
+                adversary_depth=adversary_depth,
             )
 
-        # ── 3. Formatear contexto ────────────────────────────
+        # ── 6. Formatear contexto ───────────────────────────────────
         context: str = self._format_context(chunks)
 
-        # ── 4. Construir prompt enriquecido ──────────────────
-        enriched_prompt: str = RAG_USER_TEMPLATE.format(
-            context=context,
-            question=pregunta,
-        )
+        # ── 7. Construir prompt enriquecido ────────────────────────
+        # Si venimos del modo adversario, usar la pregunta original
+        question_for_rag: str = pregunta
+        if use_adversary and should_reset_adversary:
+            # Usar la pregunta original del adversario, no la última respuesta
+            question_for_rag = self.adversary_session.state.original_question
+            enriched_prompt: str = (
+                "El estudiante ha demostrado comprensión del concepto. "
+                "Ahora proporciona información adicional basada en los apuntes:\n\n"
+                + RAG_USER_TEMPLATE.format(context=context,
+                                           question=question_for_rag)
+            )
+        else:
+            enriched_prompt: str = RAG_USER_TEMPLATE.format(
+                context=context,
+                question=question_for_rag,
+            )
 
         logger.debug(f"  Prompt enriquecido ({len(enriched_prompt)} chars)")
 
-        # ── 5. Enriquecer system prompt con perfil del usuario ────
-        enriched_system_prompt: str = build_enriched_system_prompt(RAG_SYSTEM_PROMPT)
+        # ── 8. Enriquecer system prompt con perfil del usuario ─────
+        enriched_system_prompt: str = build_enriched_system_prompt(
+            RAG_SYSTEM_PROMPT)
 
-        # ── 6. Consultar LLM con historial ───────────────────
+        # ── 9. Consultar LLM con historial ──────────────────────────
         answer: str = query_llm_with_history(
             enriched_prompt,
             history=history,
@@ -357,11 +497,17 @@ class Retriever:
             temperature=0.3,  # Más determinista para RAG
         )
 
-        # ── 7. Guardar turno en memoria ─────────────────────
+        # ── 10. Resetear sesión adversaria si se proporcionó contexto ──
+        if should_reset_adversary:
+            self.adversary_session.reset()
+            logger.info(
+                "Sesión adversaria finalizada después de proporcionar contexto")
+
+        # ── 11. Guardar turno en memoria ────────────────────────────
         self.memory.add_user_message(pregunta)
         self.memory.add_assistant_message(answer)
 
-        # ── 8. Empaquetar respuesta ─────────────────────────
+        # ── 12. Empaquetar respuesta ───────────────────────────────
         sources: List[RetrievedChunk] = [
             RetrievedChunk(**chunk) for chunk in chunks
         ]
@@ -370,8 +516,12 @@ class Retriever:
             answer=answer,
             sources=sources,
             had_context=True,
-            query=pregunta,
+            query=question_for_rag if (
+                use_adversary and should_reset_adversary) else pregunta,
             n_chunks_retrieved=len(sources),
+            question_type=detected_question_type,
+            adversary_activated=adversary_activated,
+            adversary_depth=adversary_depth if adversary_activated else None,
         )
 
         logger.info(
@@ -422,6 +572,20 @@ if __name__ == "__main__":
 
         try:
             resp: RAGResponse = rag.retrieve_and_query(pregunta)
+
+            # Mostrar metadata de la respuesta
+            metadata_parts = []
+            if resp.question_type:
+                metadata_parts.append(f"Tipo: {resp.question_type.value}")
+            if resp.adversary_activated:
+                metadata_parts.append("Adversario: ACTIVO")
+                if resp.adversary_depth is not None:
+                    metadata_parts.append(f"Profundidad: {resp.adversary_depth}/5")
+            else:
+                metadata_parts.append("Adversario: INACTIVO")
+
+            if metadata_parts:
+                print(f"\n  [{' | '.join(metadata_parts)}]")
 
             # Mostrar fuentes
             if resp.had_context:
