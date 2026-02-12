@@ -1,0 +1,91 @@
+# ============================================================================
+# Configuración de Metadatos Estructurados - Dialektos
+# ============================================================================
+#
+# Este archivo define cómo se resuelven los metadatos de cada PDF.
+# Se usa un sistema de prioridades (de menor a mayor):
+#
+#   1. defaults          → Valores por defecto globales
+#   2. inferencia auto   → Carpeta, filename, metadata interna del PDF
+#   3. folder/filename   → Reglas de mapping definidas aquí
+#   4. file_overrides    → Overrides explícitos por archivo (máxima prioridad)
+#
+# Para añadir un nuevo PDF, solo necesitas agregar una entrada en
+# file_overrides con los campos que quieras forzar.
+# ============================================================================
+
+
+# ---------------------------------------------------------------------------
+# Valores por defecto (se aplican si ninguna otra fuente los proporciona)
+# ---------------------------------------------------------------------------
+defaults:
+  idioma: "es"
+  nivel_dificultad: "intermedio"
+
+
+# ---------------------------------------------------------------------------
+# Mapping: carpeta de origen → asignatura
+#
+# La clave es el valor de source_folder (relativo a data/raw_pdfs/).
+# Ejemplo: data/raw_pdfs/Calculo/tema1.pdf → source_folder = "Calculo"
+# ---------------------------------------------------------------------------
+folder_to_asignatura:
+  "Calculo": "Cálculo"
+  "Algebra": "Álgebra Lineal"
+  "Estadistica": "Estadística"
+  "ML": "Machine Learning"
+  "DataScience": "Data Science"
+  "root": null  # PDFs en la raíz: no inferir asignatura automáticamente
+
+
+# ---------------------------------------------------------------------------
+# Patrones regex sobre el nombre del archivo → tipo de material
+#
+# Se evalúan en orden; el primer match gana.
+# Los patrones usan (?i) para case-insensitive.
+# ---------------------------------------------------------------------------
+filename_patterns:
+  - pattern: "(?i)(teoria|theory|apuntes|notes|lecture)"
+    tipo: "Teoría"
+  - pattern: "(?i)(ejercicios|exercises|problems|practice|homework)"
+    tipo: "Ejercicios"
+  - pattern: "(?i)(examen|exam|test|parcial|final|midterm)"
+    tipo: "Exámenes"
+  - pattern: "(?i)(reference|manual|handbook|scratch|guide|tutorial)"
+    tipo: "Referencia"
+  - pattern: "(?i)(resumen|summary|cheatsheet|cheat.sheet)"
+    tipo: "Resumen"
+
+
+# ---------------------------------------------------------------------------
+# Overrides explícitos por archivo (máxima prioridad)
+#
+# La clave es el nombre exacto del archivo PDF (case-sensitive).
+# Solo necesitas incluir los campos que quieras forzar; el resto
+# se resolverá por inferencia o defaults.
+# ---------------------------------------------------------------------------
+file_overrides:
+  "pythonAnalysis.pdf":
+    asignatura: "Análisis de Datos"
+    tipo: "Referencia"
+    autor: "Wes McKinney"
+    fecha: "2017"
+    idioma: "en"
+    tema_especifico: "pandas"
+
+  "DataScienceScratch.pdf":
+    asignatura: "Data Science"
+    tipo: "Referencia"
+    autor: "Joel Grus"
+    idioma: "en"
+
+  "StadisticsML.pdf":
+    asignatura: "Estadística"
+    tipo: "Referencia"
+    idioma: "en"
+    tema_especifico: "Machine Learning"
+
+  "StatisticalMOdels.pdf":
+    asignatura: "Modelos Estadísticos"
+    tipo: "Teoría"
+    idioma: "en"

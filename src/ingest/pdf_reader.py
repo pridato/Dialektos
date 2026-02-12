@@ -14,12 +14,13 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from typing import List, Dict, Union
+from typing import Dict, List, Optional, Union
 
 from pypdf import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-from .models import DocumentMetadata, ProcessedDocument, DocumentChunk
+from .models import DocumentMetadata, ProcessedDocument, DocumentChunk, StructuredMetadata
+from .metadata_extractor import MetadataExtractor
 from .text_cleaner import TextCleaner
 
 
@@ -39,15 +40,22 @@ class PDFExtractor:
         >>> extractor.save_to_json(documents, "data/processed/texts.json")
     """
     
-    def __init__(self, input_folder: Path | str):
+    def __init__(
+        self,
+        input_folder: Path | str,
+        metadata_extractor: Optional[MetadataExtractor] = None,
+    ):
         """
         Inicializa el extractor.
         
         Args:
             input_folder: Carpeta raíz que contiene los PDFs a procesar
+            metadata_extractor: Extractor de metadatos estructurados.
+                                Si es None, se crea uno con la config por defecto.
         """
         self.input_folder = Path(input_folder)
         self.text_cleaner = TextCleaner()
+        self.metadata_extractor = metadata_extractor or MetadataExtractor()
         
         if not self.input_folder.exists():
             raise FileNotFoundError(f"La carpeta {self.input_folder} no existe")
@@ -80,25 +88,41 @@ class PDFExtractor:
             
             logger.info(f"Procesando: {pdf_path.name} ({total_pages} páginas)")
             
+            # Recoger muestra de texto de las primeras páginas para detección de idioma
+            text_sample_parts: List[str] = []
+            raw_texts_by_page: Dict[int, str] = {}
+            
             for page_num, page in enumerate(reader.pages, start=1):
-                # Extraer texto crudo
                 raw_text = page.extract_text()
-                
-                if not raw_text or len(raw_text.strip()) == 0:
-                    logger.warning(f"Página {page_num} de {pdf_path.name} está vacía. Saltando.")
-                    continue
-                
+                if raw_text and raw_text.strip():
+                    raw_texts_by_page[page_num] = raw_text
+                    # Usar las primeras 5 páginas como muestra para detección de idioma
+                    if page_num <= 5:
+                        text_sample_parts.append(raw_text)
+            
+            text_sample = "\n".join(text_sample_parts) if text_sample_parts else None
+            
+            # Resolver metadatos estructurados UNA VEZ por PDF (no por página)
+            resolved_meta = self.metadata_extractor.resolve(
+                filename=pdf_path.name,
+                source_folder=source_folder,
+                pdf_path=pdf_path,
+                text_sample=text_sample,
+            )
+            
+            for page_num, raw_text in raw_texts_by_page.items():
                 # Limpiar texto
                 clean_text = self.text_cleaner.clean_text(raw_text)
                 
-                # Crear objeto con metadatos
+                # Crear StructuredMetadata por página (campos resueltos + page info)
                 doc = ProcessedDocument(
                     text=clean_text,
-                    metadata=DocumentMetadata(
+                    metadata=StructuredMetadata(
                         filename=pdf_path.name,
                         source_folder=source_folder,
                         page_number=page_num,
-                        total_pages=total_pages
+                        total_pages=total_pages,
+                        **resolved_meta,
                     )
                 )
                 

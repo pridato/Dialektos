@@ -89,7 +89,7 @@ class ChromaDBPersistence:
             )
             
             # Configurar función de embedding personalizada
-            logger.info(f"🔄 Configurando modelo de embeddings: {model_name}")
+            logger.info(f"Configurando modelo de embeddings: {model_name}")
             self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
                 model_name=model_name
             )
@@ -101,20 +101,20 @@ class ChromaDBPersistence:
                 metadata={"hnsw:space": "cosine"}  # Usar similitud coseno
             )
             
-            logger.info(f"✅ ChromaDB inicializado correctamente")
-            logger.info(f"   📁 Directorio: {self.persist_directory}")
-            logger.info(f"   🤖 Modelo: {model_name}")
-            logger.info(f"   📚 Colección: {collection_name}")
-            logger.info(f"   📊 Elementos existentes: {self.collection.count()}")
+            logger.info(f"ChromaDB inicializado correctamente")
+            logger.info(f"   Directorio: {self.persist_directory}")
+            logger.info(f"   Modelo: {model_name}")
+            logger.info(f"   Colección: {collection_name}")
+            logger.info(f"   Elementos existentes: {self.collection.count()}")
             
         except ImportError as e:
             if "chromadb" in str(e):
-                logger.error("❌ chromadb no está instalado. Ejecuta: pip install chromadb")
+                logger.error("chromadb no está instalado. Ejecuta: pip install chromadb")
             elif "sentence" in str(e):
-                logger.error("❌ sentence-transformers no está instalado. Ejecuta: pip install sentence-transformers")
+                logger.error("sentence-transformers no está instalado. Ejecuta: pip install sentence-transformers")
             raise
         except Exception as e:
-            logger.error(f"❌ Error al inicializar ChromaDB: {str(e)}")
+            logger.error(f"Error al inicializar ChromaDB: {str(e)}")
             raise
     
     
@@ -147,7 +147,7 @@ class ChromaDBPersistence:
         existing_ids = set()
         total_chunks = len(chunks)
         
-        logger.info(f"🔍 Verificando {total_chunks} chunks contra la base de datos...")
+        logger.info(f"Verificando {total_chunks} chunks contra la base de datos...")
         
         # Verificar en batches para eficiencia
         for i in range(0, total_chunks, batch_size):
@@ -163,7 +163,7 @@ class ChromaDBPersistence:
                     existing_ids.update(results['ids'])
                     
             except Exception as e:
-                logger.warning(f"⚠️ Error al verificar batch {i//batch_size + 1}: {str(e)}")
+                logger.warning(f"Error al verificar batch {i//batch_size + 1}: {str(e)}")
                 # En caso de error, asumir que el batch no existe para no perder datos
                 continue
         
@@ -171,7 +171,7 @@ class ChromaDBPersistence:
         new_chunks = [chunk for chunk in chunks if chunk.chunk_id not in existing_ids]
         
         filtered_count = total_chunks - len(new_chunks)
-        logger.info(f"   ✅ Filtrados: {filtered_count} duplicados, {len(new_chunks)} nuevos")
+        logger.info(f"   Filtrados: {filtered_count} duplicados, {len(new_chunks)} nuevos")
         
         return new_chunks
     
@@ -206,11 +206,11 @@ class ChromaDBPersistence:
             except Exception as e:
                 if attempt < max_retries - 1:
                     wait_time = 2 ** attempt  # Exponential backoff
-                    logger.warning(f"⚠️ Error en batch (intento {attempt + 1}/{max_retries}). "
+                    logger.warning(f"Error en batch (intento {attempt + 1}/{max_retries}). "
                                  f"Reintentando en {wait_time}s... Error: {str(e)}")
                     time.sleep(wait_time)
                 else:
-                    logger.error(f"❌ Error al insertar batch después de {max_retries} intentos: {str(e)}")
+                    logger.error(f"Error al insertar batch después de {max_retries} intentos: {str(e)}")
                     return False
         return False
     
@@ -252,7 +252,7 @@ class ChromaDBPersistence:
             >>> db.add_chunks(chunks, skip_duplicates=False)
         """
         if not chunks:
-            logger.warning("⚠️ No hay chunks para agregar a ChromaDB")
+            logger.warning("No hay chunks para agregar a ChromaDB")
             return
         
         original_count = len(chunks)
@@ -262,11 +262,11 @@ class ChromaDBPersistence:
             chunks = self._filter_existing_chunks(chunks)
             
             if not chunks:
-                logger.info("✅ Todos los chunks ya existen en la base de datos. No hay nada que insertar.")
+                logger.info("Todos los chunks ya existen en la base de datos. No hay nada que insertar.")
                 logger.info(f"   Pipeline idempotente: {original_count} chunks verificados, 0 insertados")
                 return
         
-        logger.info(f"📥 Insertando {len(chunks)} chunks en ChromaDB...")
+        logger.info(f"Insertando {len(chunks)} chunks en ChromaDB...")
         logger.info(f"   - Batch size: {batch_size}")
         logger.info(f"   - Total batches: {(len(chunks) + batch_size - 1) // batch_size}")
         
@@ -287,7 +287,7 @@ class ChromaDBPersistence:
             from tqdm import tqdm
             iterator = tqdm(batches, desc="Insertando chunks", disable=not show_progress)
         except ImportError:
-            logger.warning("⚠️ tqdm no instalado. Instala con: pip install tqdm")
+            logger.warning("tqdm no instalado. Instala con: pip install tqdm")
             iterator = batches
             if show_progress:
                 logger.info("Progress: Procesando batches...")
@@ -296,7 +296,11 @@ class ChromaDBPersistence:
         for batch_idx, batch in enumerate(iterator, 1):
             # Preparar datos del batch
             documents = [chunk.text for chunk in batch]
-            metadatas = [chunk.metadata.dict() for chunk in batch]
+            # Filtrar valores None de metadata (ChromaDB no los acepta)
+            metadatas = [
+                {k: v for k, v in chunk.metadata.dict().items() if v is not None}
+                for chunk in batch
+            ]
             ids = [chunk.chunk_id for chunk in batch]
             
             # Insertar batch con retry
@@ -307,7 +311,7 @@ class ChromaDBPersistence:
                 total_chunks_inserted += len(batch)
             else:
                 failed_batches += 1
-                logger.error(f"❌ Batch {batch_idx}/{len(batches)} falló después de {max_retries} intentos")
+                logger.error(f"Batch {batch_idx}/{len(batches)} falló después de {max_retries} intentos")
             
             # Log de progreso si no hay tqdm
             if not show_progress and batch_idx % 10 == 0:
@@ -317,7 +321,7 @@ class ChromaDBPersistence:
         elapsed_time = time.time() - start_time
         chunks_per_second = total_chunks_inserted / elapsed_time if elapsed_time > 0 else 0
         
-        logger.info(f"\n✅ Inserción completada:")
+        logger.info(f"\nInserción completada:")
         logger.info(f"   - Chunks insertados: {total_chunks_inserted}/{len(chunks)}")
         logger.info(f"   - Batches exitosos: {successful_batches}/{len(batches)}")
         logger.info(f"   - Batches fallidos: {failed_batches}")
@@ -326,7 +330,7 @@ class ChromaDBPersistence:
         logger.info(f"   - Total elementos en DB: {self.collection.count()}")
         
         if failed_batches > 0:
-            logger.warning(f"⚠️ {failed_batches} batches fallaron. Revisa los logs para más detalles.")
+            logger.warning(f"{failed_batches} batches fallaron. Revisa los logs para más detalles.")
     
     
     def query(self, query_text: str, n_results: int = 3, 
@@ -394,7 +398,7 @@ class ChromaDBPersistence:
             ...     print(f"[{r['score']:.2f}] {r['text'][:100]}...")
         """
         if not query or not query.strip():
-            logger.warning("⚠️ Query vacío proporcionado a semantic_search")
+            logger.warning("Query vacío proporcionado a semantic_search")
             return []
         
         try:
@@ -432,13 +436,13 @@ class ChromaDBPersistence:
                     "rank": idx + 1
                 })
             
-            logger.debug(f"🔍 Búsqueda semántica: {len(structured_results)} resultados "
+            logger.debug(f"Búsqueda semántica: {len(structured_results)} resultados "
                         f"(query: '{query[:50]}...')")
             
             return structured_results
             
         except Exception as e:
-            logger.error(f"❌ Error en semantic_search: {str(e)}")
+            logger.error(f"Error en semantic_search: {str(e)}")
             return []
     
     
@@ -452,14 +456,30 @@ class ChromaDBPersistence:
         Búsqueda semántica con filtros de metadata.
         
         Permite realizar búsquedas restringidas a documentos específicos
-        filtrando por sus metadatos (carpeta, archivo, página, etc.).
+        filtrando por sus metadatos.
+        
+        Campos filtrables (básicos):
+            - filename: Nombre del archivo PDF
+            - source_folder: Carpeta de origen
+            - page_number: Número de página
+            - total_pages: Total de páginas
+        
+        Campos filtrables (estructurados, requieren re-indexación):
+            - asignatura: Materia académica (ej: "Cálculo", "Álgebra Lineal")
+            - tipo: Categoría del material (ej: "Teoría", "Ejercicios", "Exámenes")
+            - fecha: Año del material (ej: "2024")
+            - idioma: Código ISO 639-1 (ej: "es", "en")
+            - autor: Autor del documento
+            - nivel_dificultad: Nivel (ej: "basico", "intermedio", "avanzado")
+            - tema_especifico: Tema concreto (ej: "Matrices", "Integrales")
         
         Args:
             query: Texto de búsqueda
             filters: Filtros de metadata. Ejemplos:
                     - {"source_folder": "Algebra"}
-                    - {"filename": "Tema1_Matrices.pdf"}
-                    - {"page_number": 5}
+                    - {"asignatura": "Cálculo"}
+                    - {"tipo": "Teoría"}
+                    - {"idioma": "en"}
             n_results: Número máximo de resultados
             
         Returns:
@@ -467,15 +487,21 @@ class ChromaDBPersistence:
             que semantic_search)
             
         Example:
-            >>> # Buscar solo en documentos de Álgebra
+            >>> # Buscar solo en material de Cálculo
             >>> results = db.search_with_filters(
-            ...     query="vectores y matrices",
-            ...     filters={"source_folder": "Algebra"},
+            ...     query="integral definida",
+            ...     filters={"asignatura": "Cálculo"},
             ...     n_results=3
+            ... )
+            >>> # Buscar solo teoría en inglés
+            >>> results = db.search_with_filters(
+            ...     query="linear regression",
+            ...     filters={"tipo": "Teoría", "idioma": "en"},
+            ...     n_results=5
             ... )
         """
         if not query or not query.strip():
-            logger.warning("⚠️ Query vacío proporcionado a search_with_filters")
+            logger.warning("Query vacío proporcionado a search_with_filters")
             return []
         
         try:
@@ -507,13 +533,13 @@ class ChromaDBPersistence:
                     "rank": idx + 1
                 })
             
-            logger.debug(f"🔍 Búsqueda filtrada: {len(structured_results)} resultados "
+            logger.debug(f"Búsqueda filtrada: {len(structured_results)} resultados "
                         f"(filtros: {filters})")
             
             return structured_results
             
         except Exception as e:
-            logger.error(f"❌ Error en search_with_filters: {str(e)}")
+            logger.error(f"Error en search_with_filters: {str(e)}")
             return []
     
     
@@ -549,7 +575,7 @@ class ChromaDBPersistence:
             result = self.collection.get(ids=[chunk_id])
             
             if not result['documents']:
-                logger.warning(f"⚠️ Chunk {chunk_id} no encontrado")
+                logger.warning(f"Chunk {chunk_id} no encontrado")
                 return []
             
             # Usar el texto del chunk como query
@@ -568,18 +594,19 @@ class ChromaDBPersistence:
             # Limitar a n_results
             similar = similar[:n_results]
             
-            logger.debug(f"🔍 Encontrados {len(similar)} chunks similares a {chunk_id}")
+            logger.debug(f"Encontrados {len(similar)} chunks similares a {chunk_id}")
             
             return similar
             
         except Exception as e:
-            logger.error(f"❌ Error en get_similar_chunks: {str(e)}")
+            logger.error(f"Error en get_similar_chunks: {str(e)}")
             return []
     
     
     def get_collection_stats(self) -> Dict:
         """
-        Obtiene estadísticas de la colección.
+        Obtiene estadísticas de la colección, incluyendo desglose por
+        metadatos estructurados (asignatura, tipo, idioma).
         
         Returns:
             Diccionario con estadísticas:
@@ -589,13 +616,17 @@ class ChromaDBPersistence:
                 "collection_name": str,
                 "persist_directory": str,
                 "unique_files": int,
-                "unique_folders": list
+                "unique_folders": list,
+                "by_asignatura": dict,  # {asignatura: count}
+                "by_tipo": dict,        # {tipo: count}
+                "by_idioma": dict,      # {idioma: count}
             }
             
         Example:
             >>> stats = db.get_collection_stats()
             >>> print(f"Total chunks: {stats['total_chunks']}")
-            >>> print(f"Archivos únicos: {stats['unique_files']}")
+            >>> for asig, count in stats['by_asignatura'].items():
+            ...     print(f"  {asig}: {count} chunks")
         """
         try:
             count = self.collection.count()
@@ -604,15 +635,31 @@ class ChromaDBPersistence:
             all_data = self.collection.get()
             metadatas = all_data['metadatas']
             
-            # Extraer información única
-            unique_files = set()
-            unique_folders = set()
+            # Extraer información única y conteos
+            unique_files: set = set()
+            unique_folders: set = set()
+            by_asignatura: Dict[str, int] = {}
+            by_tipo: Dict[str, int] = {}
+            by_idioma: Dict[str, int] = {}
             
             for metadata in metadatas:
                 if 'filename' in metadata:
                     unique_files.add(metadata['filename'])
                 if 'source_folder' in metadata:
                     unique_folders.add(metadata['source_folder'])
+                
+                # Conteos de metadatos estructurados
+                asig = metadata.get('asignatura')
+                if asig:
+                    by_asignatura[asig] = by_asignatura.get(asig, 0) + 1
+                
+                tipo = metadata.get('tipo')
+                if tipo:
+                    by_tipo[tipo] = by_tipo.get(tipo, 0) + 1
+                
+                idioma = metadata.get('idioma')
+                if idioma:
+                    by_idioma[idioma] = by_idioma.get(idioma, 0) + 1
             
             stats = {
                 "total_chunks": count,
@@ -620,22 +667,29 @@ class ChromaDBPersistence:
                 "collection_name": self.collection_name,
                 "persist_directory": str(self.persist_directory),
                 "unique_files": len(unique_files),
-                "unique_folders": sorted(list(unique_folders))
+                "unique_folders": sorted(list(unique_folders)),
+                "by_asignatura": dict(sorted(by_asignatura.items())),
+                "by_tipo": dict(sorted(by_tipo.items())),
+                "by_idioma": dict(sorted(by_idioma.items())),
             }
             
-            logger.debug(f"📊 Estadísticas: {count} chunks, {len(unique_files)} archivos")
+            logger.debug(f"Estadísticas: {count} chunks, {len(unique_files)} archivos, "
+                        f"{len(by_asignatura)} asignaturas")
             
             return stats
             
         except Exception as e:
-            logger.error(f"❌ Error al obtener estadísticas: {str(e)}")
+            logger.error(f"Error al obtener estadísticas: {str(e)}")
             return {
                 "total_chunks": 0,
                 "model_name": self.model_name,
                 "collection_name": self.collection_name,
                 "persist_directory": str(self.persist_directory),
                 "unique_files": 0,
-                "unique_folders": []
+                "unique_folders": [],
+                "by_asignatura": {},
+                "by_tipo": {},
+                "by_idioma": {},
             }
     
     
@@ -646,7 +700,7 @@ class ChromaDBPersistence:
         ADVERTENCIA: Esta operación es irreversible. Todos los embeddings
         y metadatos serán eliminados permanentemente.
         """
-        logger.warning("⚠️ Eliminando todos los datos de ChromaDB...")
+        logger.warning("Eliminando todos los datos de ChromaDB...")
         self.client.delete_collection(self.collection_name)
         
         # Recrear colección con la misma configuración
@@ -655,4 +709,4 @@ class ChromaDBPersistence:
             embedding_function=self.embedding_function,
             metadata={"hnsw:space": "cosine"}
         )
-        logger.info("✅ Colección reiniciada")
+        logger.info("Colección reiniciada")

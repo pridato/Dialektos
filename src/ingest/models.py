@@ -5,7 +5,8 @@ Este módulo define los modelos de datos utilizados en el pipeline ETL
 para extraer, limpiar y estructurar documentos PDF.
 
 Modelos:
-    - DocumentMetadata: Metadatos de un documento PDF
+    - DocumentMetadata: Metadatos básicos de un documento PDF
+    - StructuredMetadata: Metadatos enriquecidos para filtrado avanzado
     - ProcessedDocument: Documento procesado con texto limpio
     - DocumentChunk: Fragmento de texto optimizado para embeddings
 
@@ -14,7 +15,9 @@ Proyecto: Dialektos - Sistema RAG Adaptativo
 """
 
 import hashlib
-from pydantic import BaseModel, Field, validator
+from typing import Optional
+
+from pydantic import BaseModel, Field, SerializeAsAny, validator
 
 
 class DocumentMetadata(BaseModel):
@@ -40,18 +43,62 @@ class DocumentMetadata(BaseModel):
         return v
 
 
+class StructuredMetadata(DocumentMetadata):
+    """
+    Metadatos enriquecidos para filtrado avanzado en el sistema RAG.
+    
+    Hereda de DocumentMetadata para backward compatibility total:
+    cualquier código que espere DocumentMetadata seguirá funcionando
+    con instancias de StructuredMetadata sin cambios.
+    
+    Los campos nuevos son opcionales (Optional[str]) para que el pipeline
+    no rompa si falta algún metadato — se irán poblando progresivamente
+    mediante inferencia automática y/o configuración manual.
+    
+    Attributes:
+        asignatura: Materia académica (ej: "Cálculo", "Álgebra Lineal")
+        tipo: Categoría del material (ej: "Teoría", "Ejercicios", "Exámenes")
+        fecha: Año o fecha del material (ej: "2024")
+        idioma: Código de idioma ISO 639-1 (ej: "es", "en")
+        autor: Autor del documento
+        nivel_dificultad: Nivel estimado (ej: "basico", "intermedio", "avanzado")
+        tema_especifico: Tema concreto dentro de la asignatura (ej: "Matrices")
+    """
+    asignatura: Optional[str] = Field(
+        None, description="Materia académica (ej: Cálculo, Álgebra Lineal)"
+    )
+    tipo: Optional[str] = Field(
+        None, description="Categoría del material (ej: Teoría, Ejercicios, Exámenes, Referencia)"
+    )
+    fecha: Optional[str] = Field(
+        None, description="Año o fecha del material (ej: 2024)"
+    )
+    idioma: Optional[str] = Field(
+        None, description="Código de idioma ISO 639-1 (ej: es, en, fr)"
+    )
+    autor: Optional[str] = Field(
+        None, description="Autor del documento"
+    )
+    nivel_dificultad: Optional[str] = Field(
+        None, description="Nivel estimado (ej: basico, intermedio, avanzado)"
+    )
+    tema_especifico: Optional[str] = Field(
+        None, description="Tema concreto dentro de la asignatura (ej: Matrices, Integrales)"
+    )
+
+
 class ProcessedDocument(BaseModel):
     """
     Documento procesado con texto limpio y metadatos.
     
     Attributes:
         text: Texto limpio y continuo (sin artefactos de PDF)
-        metadata: Metadatos estructurados del documento
+        metadata: Metadatos estructurados del documento (DocumentMetadata o StructuredMetadata)
         char_count: Número de caracteres del texto limpio
         word_count: Número aproximado de palabras
     """
     text: str = Field(..., min_length=1, description="Texto procesado")
-    metadata: DocumentMetadata
+    metadata: SerializeAsAny[DocumentMetadata]
     char_count: int = Field(default=0, ge=0)
     word_count: int = Field(default=0, ge=0)
     
@@ -92,7 +139,7 @@ class DocumentChunk(BaseModel):
     text: str = Field(..., min_length=10, description="Texto del chunk")
     chunk_index: int = Field(..., ge=0, description="Índice del chunk")
     total_chunks: int = Field(..., ge=1, description="Total de chunks del documento")
-    metadata: DocumentMetadata
+    metadata: SerializeAsAny[DocumentMetadata]
     char_count: int = Field(default=0, ge=0)
     token_count: int = Field(default=0, ge=0)
     

@@ -6,17 +6,19 @@ Importa y re-exporta componentes de módulos especializados para mantener
 backward compatibility con código existente.
 
 Arquitectura Modular:
-    - models.py: Modelos Pydantic (DocumentMetadata, ProcessedDocument, DocumentChunk)
+    - models.py: Modelos Pydantic (DocumentMetadata, StructuredMetadata, ProcessedDocument, DocumentChunk)
     - text_cleaner.py: Limpieza de texto con RegEx
+    - metadata_extractor.py: Resolución híbrida de metadatos estructurados
     - pdf_reader.py: Extracción y chunking de PDFs
     - chroma_persistence.py: Persistencia optimizada en ChromaDB
 
 Pipeline completo:
     1. Extracción: Lee PDFs página por página
     2. Limpieza: Aplica RegEx para corregir artefactos del formato PDF
-    3. Chunking: Divide texto en fragmentos semánticos (~1000 tokens)
-    4. Enriquecimiento: Añade metadatos (archivo, carpeta, página, chunk_id)
-    5. Persistencia: Guarda en JSON (debug) + ChromaDB (producción con batch processing)
+    3. Metadatos: Resuelve metadatos estructurados (asignatura, tipo, idioma, etc.)
+    4. Chunking: Divide texto en fragmentos semánticos (~1000 tokens)
+    5. Enriquecimiento: Añade metadatos (archivo, carpeta, página, chunk_id)
+    6. Persistencia: Guarda en JSON (debug) + ChromaDB (producción con batch processing)
 
 Autor: David Arroyo
 Proyecto: Dialektos - Sistema RAG Adaptativo
@@ -46,8 +48,9 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 # Importar todos los componentes de los módulos especializados
-from .models import DocumentMetadata, ProcessedDocument, DocumentChunk
+from .models import DocumentMetadata, StructuredMetadata, ProcessedDocument, DocumentChunk
 from .text_cleaner import TextCleaner
+from .metadata_extractor import MetadataExtractor
 from .pdf_reader import PDFExtractor
 from .chroma_persistence import ChromaDBPersistence
 
@@ -56,9 +59,11 @@ from .chroma_persistence import ChromaDBPersistence
 # seguirán funcionando sin cambios
 __all__ = [
     'DocumentMetadata',
+    'StructuredMetadata',
     'ProcessedDocument',
     'DocumentChunk',
     'TextCleaner',
+    'MetadataExtractor',
     'PDFExtractor',
     'ChromaDBPersistence',
 ]
