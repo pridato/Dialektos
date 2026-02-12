@@ -20,6 +20,8 @@ from typing import Dict, List, Optional
 from dotenv import load_dotenv
 from openai import OpenAI, OpenAIError
 
+from src.brain.user_profile import build_enriched_system_prompt
+
 # ─── Cargar variables de entorno (.env) ──────────────────────
 load_dotenv()
 
@@ -79,7 +81,8 @@ def query_llm(
     Args:
         pregunta: La pregunta del usuario en texto plano.
         system_prompt: Instrucciones de comportamiento para el modelo.
-            Por defecto usa el prompt base de Dialektos.
+            Por defecto usa el prompt base de Dialektos enriquecido con
+            el perfil del usuario. Si se pasa explícitamente, se usa tal cual.
         model: Identificador del modelo de OpenAI a utilizar.
         temperature: Creatividad de la respuesta
             (0.0 = determinista, 1.0 = creativo).
@@ -99,13 +102,18 @@ def query_llm(
     if not pregunta.strip():
         raise ValueError("La pregunta no puede estar vacía.")
 
+    # Enriquecer el prompt con el perfil del usuario si se usa el default
+    final_prompt: str = system_prompt
+    if system_prompt == SYSTEM_PROMPT:
+        final_prompt = build_enriched_system_prompt(SYSTEM_PROMPT)
+
     client: OpenAI = _get_client()
 
     try:
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": final_prompt},
                 {"role": "user", "content": pregunta},
             ],
             temperature=temperature,
@@ -141,6 +149,8 @@ def query_llm_with_history(
         history: Lista de mensajes previos, cada uno un dict con
             ``{"role": "user"|"assistant", "content": "..."}``.
         system_prompt: Instrucciones de comportamiento para el modelo.
+            Por defecto usa el prompt base de Dialektos enriquecido con
+            el perfil del usuario. Si se pasa explícitamente, se usa tal cual.
         model: Identificador del modelo de OpenAI a utilizar.
         temperature: Creatividad de la respuesta
             (0.0 = determinista, 1.0 = creativo).
@@ -163,11 +173,16 @@ def query_llm_with_history(
     if not pregunta.strip():
         raise ValueError("La pregunta no puede estar vacía.")
 
+    # Enriquecer el prompt con el perfil del usuario si se usa el default
+    final_prompt: str = system_prompt
+    if system_prompt == SYSTEM_PROMPT:
+        final_prompt = build_enriched_system_prompt(SYSTEM_PROMPT)
+
     client: OpenAI = _get_client()
 
     # Construir secuencia: system → historial → pregunta actual
     messages: List[Dict[str, str]] = [
-        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": final_prompt},
     ]
     messages.extend(history)
     messages.append({"role": "user", "content": pregunta})

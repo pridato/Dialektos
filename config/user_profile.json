@@ -1,0 +1,43 @@
+{
+  "user_profile": {
+    "identity": {
+      "current_role": "Estudiante de 2º año de Ingeniería Informática",
+      "occupation": "Profesor de Academia (Matemáticas Universitarias, Cálculo, Álgebra Lineal, Física)",
+      "language_proficiency": {
+        "native": "Spanish",
+        "english": "B1"
+      }
+    },
+    "career_goals": {
+      "primary_objective": "Data Scientist Profesional",
+      "interests": [
+        "Inteligencia Artificial",
+        "Análisis de Datos",
+        "Programación"
+      ]
+    },
+    "knowledge_base": {
+      "strengths": [
+        "Cálculo",
+        "Álgebra Lineal",
+        "Física",
+        "Programación General",
+        "Docencia"
+      ],
+      "current_focus": "Ciencia de Datos e IA"
+    },
+    "learning_preferences": {
+      "pedagogical_style": "Conceptual e Intuitivo",
+      "instruction_rules": [
+        "Priorizar el 'Por qué' (lógica subyacente) antes que el 'Cómo' (sintaxis/fórmula)",
+        "Uso de analogías seguido de explicaciones técnicas rigurosas",
+        "Evitar aprendizaje mecánico; fomentar aprendizaje activo mediante preguntas",
+        "Explicar la estructura algorítmica antes de mostrar código final"
+      ],
+      "critical_thinking": [
+        "Evitar sesgo de confirmación",
+        "Validación técnica de términos complejos"
+      ]
+    }
+  }
+}

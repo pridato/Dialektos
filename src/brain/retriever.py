@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 from src.ingest.chroma_persistence import ChromaDBPersistence
 from src.brain.llm_client import query_llm, query_llm_with_history
 from src.brain.memory import ConversationMemory
+from src.brain.user_profile import build_enriched_system_prompt
 
 
 logger = logging.getLogger(__name__)
@@ -345,19 +346,22 @@ class Retriever:
 
         logger.debug(f"  Prompt enriquecido ({len(enriched_prompt)} chars)")
 
-        # ── 5. Consultar LLM con historial ───────────────────
+        # ── 5. Enriquecer system prompt con perfil del usuario ────
+        enriched_system_prompt: str = build_enriched_system_prompt(RAG_SYSTEM_PROMPT)
+
+        # ── 6. Consultar LLM con historial ───────────────────
         answer: str = query_llm_with_history(
             enriched_prompt,
             history=history,
-            system_prompt=RAG_SYSTEM_PROMPT,
+            system_prompt=enriched_system_prompt,
             temperature=0.3,  # Más determinista para RAG
         )
 
-        # ── 6. Guardar turno en memoria ─────────────────────
+        # ── 7. Guardar turno en memoria ─────────────────────
         self.memory.add_user_message(pregunta)
         self.memory.add_assistant_message(answer)
 
-        # ── 7. Empaquetar respuesta ─────────────────────────
+        # ── 8. Empaquetar respuesta ─────────────────────────
         sources: List[RetrievedChunk] = [
             RetrievedChunk(**chunk) for chunk in chunks
         ]
