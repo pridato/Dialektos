@@ -25,7 +25,8 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from src.ingest.chroma_persistence import ChromaDBPersistence
-from src.brain.llm_client import query_llm
+from src.brain.llm_client import query_llm, query_llm_with_history
+from src.brain.memory import ConversationMemory
 
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,19 @@ RAG_USER_TEMPLATE: str = (
     "Pregunta: {question}"
 )
 
+REWRITE_SYSTEM_PROMPT: str = (
+    "Tu ÚNICA tarea es reformular la última pregunta del usuario como una "
+    "pregunta AUTOCONTENIDA, incorporando el contexto necesario del historial "
+    "de conversación.\n\n"
+    "REGLAS:\n"
+    "1. Devuelve SOLO la pregunta reformulada, sin explicaciones ni prefijos.\n"
+    "2. Si la pregunta ya es autocontenida, devuélvela tal cual.\n"
+    "3. Resuelve pronombres y referencias implícitas (e.g. 'sus', 'eso', "
+    "'lo anterior') usando el historial.\n"
+    "4. Mantén el idioma original del usuario.\n"
+    "5. No respondas la pregunta, solo reformúlala."
+)
+
 
 # ─── Clase Retriever ─────────────────────────────────────────
 
@@ -117,31 +131,43 @@ class Retriever:
     un prompt estricto que fuerza al modelo a responder solo con el
     contexto de los apuntes del alumno.
 
+    Soporta conversaciones multi-turno gracias a ``ConversationMemory``
+    y query rewriting automático para preguntas de seguimiento.
+
     La inyección de dependencias en ``__init__`` permite pasar una
     instancia mock de ``ChromaDBPersistence`` para testing.
 
     Attributes:
         db: Instancia de ChromaDBPersistence para búsqueda semántica.
+        memory: Historial conversacional con ventana deslizante.
 
     Example:
         >>> retriever = Retriever()
-        >>> response = retriever.retrieve_and_query("¿Qué es una matriz?")
-        >>> print(response.answer)
-        >>> for src in response.sources:
-        ...     print(f"  [{src.score:.2f}] {src.metadata.get('filename')}")
+        >>> r1 = retriever.retrieve_and_query("¿Qué es un espacio vectorial?")
+        >>> r2 = retriever.retrieve_and_query("¿Y cuáles son sus propiedades?")
+        >>> # r2 recuerda que "sus" se refiere a espacios vectoriales
     """
 
-    def __init__(self, db: Optional[ChromaDBPersistence] = None) -> None:
+    def __init__(
+        self,
+        db: Optional[ChromaDBPersistence] = None,
+        max_turns: int = 5,
+    ) -> None:
         """
-        Inicializa el Retriever con una conexión a ChromaDB.
+        Inicializa el Retriever con una conexión a ChromaDB y memoria.
 
         Args:
             db: Instancia de ChromaDBPersistence. Si es None, crea una
                 con la configuración por defecto. Pasar una instancia
                 explícita es útil para testing o configuraciones custom.
+            max_turns: Número máximo de turnos de conversación a retener
+                en memoria (default: 5).
         """
         self.db: ChromaDBPersistence = db or ChromaDBPersistence()
-        logger.info("Retriever inicializado correctamente")
+        self.memory: ConversationMemory = ConversationMemory(
+            max_turns=max_turns,
+        )
+        logger.info("Retriever inicializado con memoria conversacional")
 
     @staticmethod
     def _format_context(chunks: List[Dict[str, Any]]) -> str:
@@ -185,6 +211,56 @@ class Retriever:
 
         return "\n\n".join(blocks)
 
+    def _rewrite_query(
+        self,
+        pregunta: str,
+        history: List[Dict[str, str]],
+    ) -> str:
+        """
+        Reformula una pregunta de seguimiento como pregunta autocontenida.
+
+        Usa el LLM para resolver pronombres y referencias implícitas
+        (e.g. "¿Y sus propiedades?" → "¿Cuáles son las propiedades
+        de un espacio vectorial?"), de modo que la búsqueda semántica
+        en ChromaDB encuentre chunks relevantes.
+
+        Solo se ejecuta cuando hay historial previo.  En el primer
+        turno la pregunta ya es autocontenida y no se reescribe.
+
+        Args:
+            pregunta: Pregunta original del usuario (posiblemente ambigua).
+            history: Historial de mensajes previos (role + content).
+
+        Returns:
+            Pregunta reformulada como texto autocontenido.
+        """
+        try:
+            rewritten: str = query_llm_with_history(
+                pregunta=f"Reformula esta pregunta: {pregunta}",
+                history=history,
+                system_prompt=REWRITE_SYSTEM_PROMPT,
+                temperature=0.0,
+                max_tokens=150,
+            )
+            logger.info(
+                f"  Query rewriting: '{pregunta[:50]}' → '{rewritten[:50]}'"
+            )
+            return rewritten.strip()
+
+        except Exception as e:
+            logger.warning(f"  Query rewriting falló: {e}. Usando original.")
+            return pregunta
+
+    def clear_memory(self) -> None:
+        """
+        Reinicia el historial de conversación.
+
+        Útil para iniciar una nueva sesión de estudio sin arrastrar
+        contexto de preguntas anteriores.
+        """
+        self.memory.clear()
+        logger.info("Memoria conversacional reiniciada")
+
     def retrieve_and_query(
         self,
         pregunta: str,
@@ -195,12 +271,14 @@ class Retriever:
         """
         Busca contexto en ChromaDB y consulta al LLM con él.
 
-        Flujo completo:
+        Flujo completo con memoria conversacional:
+            0. Si hay historial, reescribe la query (query rewriting).
             1. Búsqueda semántica en ChromaDB (top ``n_chunks``).
             2. Si no hay resultados: retorna respuesta de rechazo.
             3. Si hay resultados: formatea contexto, construye prompt
-               enriquecido, consulta al LLM.
+               enriquecido, consulta al LLM con historial.
             4. Empaqueta todo en un ``RAGResponse`` validado.
+            5. Guarda el turno en memoria.
 
         Args:
             pregunta: La pregunta del usuario en texto plano.
@@ -216,18 +294,26 @@ class Retriever:
 
         Example:
             >>> retriever = Retriever()
-            >>> resp = retriever.retrieve_and_query("¿Qué es una derivada?")
-            >>> print(resp.answer)
-            >>> print(f"Fuentes: {resp.n_chunks_retrieved}")
+            >>> r1 = retriever.retrieve_and_query("¿Qué es una derivada?")
+            >>> r2 = retriever.retrieve_and_query("¿Y cómo se calcula?")
+            >>> # r2 busca "cómo se calcula una derivada" en ChromaDB
         """
         if not pregunta or not pregunta.strip():
             raise ValueError("La pregunta no puede estar vacía.")
 
         logger.info(f"RAG query: '{pregunta[:80]}...'")
 
+        # ── 0. Query rewriting (si hay historial) ────────────
+        history: List[Dict[str, str]] = self.memory.get_messages()
+        search_query: str = pregunta
+
+        if not self.memory.is_first_turn:
+            search_query = self._rewrite_query(pregunta, history)
+            logger.info(f"  Query reescrita para búsqueda: '{search_query[:80]}'")
+
         # ── 1. Búsqueda semántica ────────────────────────────
         chunks: List[Dict[str, Any]] = self.db.semantic_search(
-            query=pregunta,
+            query=search_query,
             n_results=n_chunks,
             min_similarity=min_similarity,
         )
@@ -237,6 +323,9 @@ class Retriever:
         # ── 2. Sin contexto → rechazo estricto ───────────────
         if not chunks:
             logger.warning("  Sin contexto relevante. Respondiendo con rechazo.")
+            # Guardar en memoria incluso sin contexto (para continuidad)
+            self.memory.add_user_message(pregunta)
+            self.memory.add_assistant_message(NO_CONTEXT_MESSAGE)
             return RAGResponse(
                 answer=NO_CONTEXT_MESSAGE,
                 sources=[],
@@ -256,14 +345,19 @@ class Retriever:
 
         logger.debug(f"  Prompt enriquecido ({len(enriched_prompt)} chars)")
 
-        # ── 5. Consultar LLM ────────────────────────────────
-        answer: str = query_llm(
+        # ── 5. Consultar LLM con historial ───────────────────
+        answer: str = query_llm_with_history(
             enriched_prompt,
+            history=history,
             system_prompt=RAG_SYSTEM_PROMPT,
             temperature=0.3,  # Más determinista para RAG
         )
 
-        # ── 6. Empaquetar respuesta ─────────────────────────
+        # ── 6. Guardar turno en memoria ─────────────────────
+        self.memory.add_user_message(pregunta)
+        self.memory.add_assistant_message(answer)
+
+        # ── 7. Empaquetar respuesta ─────────────────────────
         sources: List[RetrievedChunk] = [
             RetrievedChunk(**chunk) for chunk in chunks
         ]
@@ -278,7 +372,8 @@ class Retriever:
 
         logger.info(
             f"  RAG completado: {response.n_chunks_retrieved} fuentes, "
-            f"max_score={sources[0].score:.2f}"
+            f"max_score={sources[0].score:.2f}, "
+            f"memoria={len(self.memory)} turnos"
         )
 
         return response
@@ -288,8 +383,8 @@ class Retriever:
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  Dialektos — RAG Chat (Retrieval + LLM)")
-    print("  Escribe 'salir' para terminar.")
+    print("  Dialektos — RAG Chat con Memoria Conversacional")
+    print("  Comandos:  'salir'  |  'reset' (limpiar memoria)")
     print("=" * 60)
 
     try:
@@ -299,6 +394,7 @@ if __name__ == "__main__":
         raise SystemExit(1)
 
     print(f"\n  DB cargada: {rag.db.collection.count()} chunks disponibles")
+    print(f"  Memoria: hasta {rag.memory.max_turns} turnos")
     print("-" * 60)
 
     while True:
@@ -312,6 +408,11 @@ if __name__ == "__main__":
             print("\nHasta luego.")
             break
 
+        if pregunta.lower() == "reset":
+            rag.clear_memory()
+            print("\n  Memoria limpiada. Nueva conversación.")
+            continue
+
         if not pregunta:
             continue
 
@@ -324,7 +425,8 @@ if __name__ == "__main__":
                 print(
                     f"\n  [{resp.n_chunks_retrieved} chunks | "
                     f"max score: {max(scores):.2f} | "
-                    f"min score: {min(scores):.2f}]"
+                    f"min score: {min(scores):.2f} | "
+                    f"memoria: {len(rag.memory)} turnos]"
                 )
             else:
                 print("\n  [Sin contexto relevante en la DB]")

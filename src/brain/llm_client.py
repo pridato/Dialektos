@@ -15,7 +15,7 @@ Proyecto: Dialektos - Sistema RAG Adaptativo
 """
 
 import os
-from typing import Optional
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from openai import OpenAI, OpenAIError
@@ -108,6 +108,74 @@ def query_llm(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": pregunta},
             ],
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return response.choices[0].message.content or ""
+
+    except OpenAIError as e:
+        raise OpenAIError(f"Error al consultar el LLM: {e}") from e
+
+
+# ─── Función con historial ───────────────────────────────────
+def query_llm_with_history(
+    pregunta: str,
+    history: List[Dict[str, str]],
+    *,
+    system_prompt: str = SYSTEM_PROMPT,
+    model: str = DEFAULT_MODEL,
+    temperature: float = DEFAULT_TEMPERATURE,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
+) -> str:
+    """
+    Envía una pregunta al LLM incluyendo el historial de conversación.
+
+    Construye la lista de mensajes como:
+        ``[system] + history + [user(pregunta)]``
+
+    Esto permite al modelo mantener coherencia entre turnos
+    sucesivos de una misma conversación.
+
+    Args:
+        pregunta: La pregunta actual del usuario en texto plano.
+        history: Lista de mensajes previos, cada uno un dict con
+            ``{"role": "user"|"assistant", "content": "..."}``.
+        system_prompt: Instrucciones de comportamiento para el modelo.
+        model: Identificador del modelo de OpenAI a utilizar.
+        temperature: Creatividad de la respuesta
+            (0.0 = determinista, 1.0 = creativo).
+        max_tokens: Límite máximo de tokens en la respuesta.
+
+    Returns:
+        Texto de la respuesta del modelo.
+
+    Raises:
+        ValueError: Si la pregunta está vacía o la API key no existe.
+        OpenAIError: Si hay un error de comunicación con la API.
+
+    Example:
+        >>> history = [
+        ...     {"role": "user", "content": "¿Qué es un espacio vectorial?"},
+        ...     {"role": "assistant", "content": "Un espacio vectorial es ..."},
+        ... ]
+        >>> resp = query_llm_with_history("¿Y sus propiedades?", history)
+    """
+    if not pregunta.strip():
+        raise ValueError("La pregunta no puede estar vacía.")
+
+    client: OpenAI = _get_client()
+
+    # Construir secuencia: system → historial → pregunta actual
+    messages: List[Dict[str, str]] = [
+        {"role": "system", "content": system_prompt},
+    ]
+    messages.extend(history)
+    messages.append({"role": "user", "content": pregunta})
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
         )
