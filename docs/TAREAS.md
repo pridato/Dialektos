@@ -71,7 +71,7 @@
 
 *Crear la estructura de base de datos (`metrics.db`) usando SQLModel. Tres tablas interrelacionadas que separan señal biológica, percepción psicológica y variables de confusión.*
 
-- [ ] **3.1.1 Tabla `DailyBiometrics` — La foto diaria (PK: `date`)**
+- [X] **3.1.1 Tabla `DailyBiometrics` — La foto diaria (PK: `date`)**
   - **Dificultad:** EASY
   - *Detalle:* Una fila por día. Combina datos objetivos de Suunto con autoevaluación subjetiva.
   - *Esquema — Objetivo (Suunto):*
@@ -101,9 +101,10 @@
     - `icd_score` (FLOAT, 0-100): Índice Cognitivo Diario calculado (ver 3.3).
   - *Por qué:* Separar señal biológica de percepción psicológica. A veces divergen (buena HRV pero niebla mental, o baja HRV pero alta motivación), y esa divergencia es un insight valioso.
 
-- [ ] **3.1.2 Tabla `StudySession` — Eventos de estudio (FK: `date`)**
+- [X] **3.1.2 Tabla `StudySession` — Eventos de estudio (FK: `date`)**
   - **Dificultad:** EASY
   - *Detalle:* Múltiples sesiones por día. Es la **variable objetivo (Y)** que valida si el ICD funciona.
+  - *Completado:* 2026-02-13. Implementado en `src/bio/models.py` con enums `TaskTypeEnum` y `DifficultyEnum`, validadores Pydantic y FK a `DailyBiometrics`.
   - *Esquema:*
     - `session_id` (INT, PK, autoincrement).
     - `date` (DATE, FK → DailyBiometrics): Enlace al estado biométrico del día.
@@ -120,13 +121,13 @@
     - `icd_at_start` (FLOAT): Snapshot del ICD al momento de empezar (para correlación directa).
   - *Por qué:* Con `task_type`, `difficulty_attempted` y `flow_state` puedes hacer análisis mucho más ricos: ¿en qué tipo de tarea rindes más cuando el ICD es bajo? ¿La dificultad intentada vs. el ICD predice si entras en flow?
 
-- [ ] **3.1.3 Tabla `DailyConfounders` — Variables de confusión (PK: `date`, 1:1 con DailyBiometrics)**
+- [X] **3.1.3 Tabla `DailyConfounders` — Variables de confusión (PK: `date`, 1:1 con DailyBiometrics)**
   - **Dificultad:** EASY
   - *Detalle:* Sin esto, tu análisis de correlación puede ser **espurio**. Ejemplo: "HRV alta → buen focus" pero en realidad los días de HRV alta son los que no tomaste café tarde.
+  - *Completado:* 2026-02-13. Implementado en `src/bio/models.py` con enum `ExerciseTypeEnum`, validadores Pydantic y FK a `DailyBiometrics`.
   - *Esquema:*
     - `date` (DATE, PK, FK → DailyBiometrics).
     - `caffeine_mg` (INT): Estimación de cafeína consumida (café ~95mg, té ~47mg).
-    - `alcohol` (BOOL): Consumo de alcohol la noche anterior.
     - `screen_time_pre_sleep` (INT, min): Minutos de pantalla antes de dormir.
     - `meals_quality` (INT, 1-5): Calidad percibida de alimentación.
     - `social_stress` (INT, 1-10): Estrés social/emocional no medido por Suunto.

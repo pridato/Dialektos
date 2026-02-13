@@ -16,11 +16,12 @@ from typing import Optional, Union
 
 from sqlmodel import create_engine, SQLModel
 
-from src.bio.models import DailyBiometrics
+from src.bio.models import DailyBiometrics, DailyConfounders, StudySession
 
 
 # Ruta por defecto: data/metrics.db (alineado con data/chroma_db del RAG)
-DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "metrics.db"
+DEFAULT_DB_PATH = Path(__file__).resolve(
+).parent.parent.parent / "data" / "metrics.db"
 
 
 def get_engine(db_path: Optional[Union[Path, str]] = None):
@@ -48,7 +49,7 @@ def init_metrics_db(db_path: Optional[Union[Path, str]] = None) -> None:
     path = Path(db_path) if db_path else DEFAULT_DB_PATH
     engine = get_engine(path)
     create_tables(engine)
-    print(f"✓ Base de datos inicializada: {path}")
+    print(f"Base de datos inicializada: {path}")
 
 
 if __name__ == "__main__":
