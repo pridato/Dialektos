@@ -19,7 +19,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from typing import Any, Dict, List, Optional
 from datetime import date, datetime, timedelta
-
+import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -137,9 +138,23 @@ async def root():
     return {"message": "Dialektos API", "status": "ok"}
 
 
+@app.get("/api/warmup-chat")
+async def chat_warmup(request: Request):
+    """
+    Precalienta ChromaDB y el modelo de embeddings para que la primera pregunta
+    del chat responda rápido. El frontend puede llamar a este endpoint al abrir la vista de chat.
+    """
+    _ensure_chat_deps(request.app)
+    return {"status": "ok"}
+
+
 # Cache-aside: clave y TTL para ICD del día
 ICD_CACHE_KEY = "api:icd:today"
 ICD_CACHE_TTL_SECONDS = 300  # 5 minutos
+
+# Estado del modo socrático por sesión (para que el diálogo continúe entre requests)
+ADVERSARY_STATE_KEY_PREFIX = "adversary_state:"
+ADVERSARY_STATE_TTL = 86400 * 2  # 2 días
 
 
 def _icd_response_to_dict(resp: ICDResponse) -> Dict[str, Any]:
@@ -428,6 +443,33 @@ async def save_confounders(data: ConfounderData):
             raise HTTPException(status_code=500, detail=str(e))
 
 
+def _load_adversary_state(session_id: str) -> Optional[Dict[str, Any]]:
+    """Carga el estado del modo socrático desde Redis para esta sesión."""
+    try:
+        from src.cache.redis_client import get_redis
+        from src.brain.adversary import AdversaryState
+        r = get_redis()
+        raw = r.get(f"{ADVERSARY_STATE_KEY_PREFIX}{session_id}")
+        if not raw:
+            return None
+        data = json.loads(raw)
+        AdversaryState.model_validate(data)  # validar estructura
+        return data
+    except Exception:
+        return None
+
+
+def _save_adversary_state(session_id: str, state: Any) -> None:
+    """Guarda el estado del modo socrático en Redis para esta sesión."""
+    try:
+        from src.cache.redis_client import get_redis
+        r = get_redis()
+        key = f"{ADVERSARY_STATE_KEY_PREFIX}{session_id}"
+        r.setex(key, ADVERSARY_STATE_TTL, json.dumps(state, ensure_ascii=False))
+    except Exception:
+        pass
+
+
 def _ensure_chat_deps(app: FastAPI) -> None:
     """
     Inicializa ChromaDB y caché RAG una sola vez por proceso (app.state).
@@ -486,21 +528,20 @@ def _build_retriever(request: ChatRequest, app: FastAPI):
         except Exception:
             pass
 
-    return Retriever(
+    retriever = Retriever(
         db=db,
         initial_messages=initial_messages,
         semantic_cache=semantic_cache,
-    ), session_memory
-
-
-@app.get("/api/chat/warmup")
-async def chat_warmup(request: Request):
-    """
-    Precalienta ChromaDB y el modelo de embeddings para que la primera pregunta
-    del chat responda rápido. El frontend puede llamar a este endpoint al abrir la vista de chat.
-    """
-    _ensure_chat_deps(request.app)
-    return {"status": "ok"}
+    )
+    if request.session_id:
+        state_data = _load_adversary_state(request.session_id)
+        if state_data:
+            try:
+                from src.brain.adversary import AdversaryState
+                retriever.adversary_session.state = AdversaryState.model_validate(state_data)
+            except Exception:
+                pass
+    return retriever, session_memory
 
 
 @app.post("/api/chat")
@@ -517,11 +558,20 @@ async def chat(chat_request: ChatRequest, request: Request):
                     adversary_mode=chat_request.adversary_mode,
                 ):
                     yield json.dumps(event, ensure_ascii=False) + "\n"
-                if chat_request.session_id and session_memory:
+                    await asyncio.sleep(0)  # ceder para que el servidor envíe el chunk al cliente
+                if chat_request.session_id:
+                    if session_memory:
+                        try:
+                            session_memory.set_messages(
+                                chat_request.session_id,
+                                retriever.memory.get_messages(),
+                            )
+                        except Exception:
+                            pass
                     try:
-                        session_memory.set_messages(
+                        _save_adversary_state(
                             chat_request.session_id,
-                            retriever.memory.get_messages(),
+                            retriever.adversary_session.state.model_dump(),
                         )
                     except Exception:
                         pass
@@ -529,6 +579,11 @@ async def chat(chat_request: ChatRequest, request: Request):
             return StreamingResponse(
                 ndjson_stream(),
                 media_type="application/x-ndjson",
+                headers={
+                    "Cache-Control": "no-cache, no-store",
+                    "X-Accel-Buffering": "no",
+                    "Connection": "keep-alive",
+                },
             )
 
         response = await retriever.retrieve_and_query_async(
@@ -536,11 +591,19 @@ async def chat(chat_request: ChatRequest, request: Request):
             adversary_mode=chat_request.adversary_mode,
         )
 
-        if chat_request.session_id and session_memory:
+        if chat_request.session_id:
+            if session_memory:
+                try:
+                    session_memory.set_messages(
+                        chat_request.session_id,
+                        retriever.memory.get_messages(),
+                    )
+                except Exception:
+                    pass
             try:
-                session_memory.set_messages(
+                _save_adversary_state(
                     chat_request.session_id,
-                    retriever.memory.get_messages(),
+                    retriever.adversary_session.state.model_dump(),
                 )
             except Exception:
                 pass

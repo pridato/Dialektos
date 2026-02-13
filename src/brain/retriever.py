@@ -794,14 +794,15 @@ class Retriever:
             if self.adversary_session.should_provide_context():
                 should_reset_adversary = True
             else:
-                socratic_question: str = (
-                    self.adversary_session.generate_socratic_question(pregunta)
+                if stream_callback is not None:
+                    meta = {"sources": [], "adversary_info": {"active": True, "depth": self.adversary_session.state.question_depth}}
+                    stream_callback(("meta", meta))
+                socratic_question: str = await asyncio.to_thread(
+                    self.adversary_session.generate_socratic_question, pregunta
                 )
                 self.memory.add_user_message(pregunta)
                 self.memory.add_assistant_message(socratic_question)
                 if stream_callback is not None:
-                    meta = {"sources": [], "adversary_info": {"active": True, "depth": self.adversary_session.state.question_depth}}
-                    stream_callback(("meta", meta))
                     stream_callback(("done", socratic_question))
                 return RAGResponse(
                     answer=socratic_question,
@@ -815,17 +816,22 @@ class Retriever:
                 )
 
         elif use_adversary and not self.adversary_session.state.is_active:
-            if self.adversary_session.should_activate(pregunta):
+            # should_activate llama al LLM (analyze_question): ejecutar en hilo para no bloquear el stream
+            should_act = await asyncio.to_thread(
+                self.adversary_session.should_activate, pregunta
+            )
+            if should_act:
                 adversary_activated = True
                 adversary_depth = 1
-                socratic_question = (
-                    self.adversary_session.generate_socratic_question(pregunta)
+                if stream_callback is not None:
+                    meta = {"sources": [], "adversary_info": {"active": True, "depth": 1}}
+                    stream_callback(("meta", meta))
+                socratic_question = await asyncio.to_thread(
+                    self.adversary_session.generate_socratic_question, pregunta
                 )
                 self.memory.add_user_message(pregunta)
                 self.memory.add_assistant_message(socratic_question)
                 if stream_callback is not None:
-                    meta = {"sources": [], "adversary_info": {"active": True, "depth": 1}}
-                    stream_callback(("meta", meta))
                     stream_callback(("done", socratic_question))
                 return RAGResponse(
                     answer=socratic_question,
@@ -1029,13 +1035,14 @@ class Retriever:
             try:
                 event_type, data = q.get_nowait()
             except queue.Empty:
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.001)  # 1ms para que los tokens salgan en cuanto llegan
                 continue
             if event_type == "meta":
                 last_meta = data
                 yield {"event": "meta", **data}
             elif event_type == "token":
                 yield {"event": "token", "content": data}
+                await asyncio.sleep(0)  # ceder para enviar el chunk al cliente
             else:
                 yield {
                     "event": "done",

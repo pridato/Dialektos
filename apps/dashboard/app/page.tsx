@@ -40,7 +40,7 @@ export default function Page() {
   const { icd, loading: icdLoading } = useICD()
   const { biometrics: todayBiometrics, loading: bioLoading } = useTodayBiometrics()
   const { biometrics: recentBiometrics } = useRecentBiometrics(7)
-  const { messages, loading: chatLoading, sendMessage, clearMessages } = useChat()
+  const { messages, loading: chatLoading, sendMessage, clearMessages } = useChat(true)
   
   // Datos calculados
   const icdScore = icd?.icd_score ?? null
@@ -58,12 +58,18 @@ export default function Page() {
   useEffect(() => {
     if (currentView === 'chat') api.warmupChat()
   }, [currentView])
+
+  // Scroll al final del chat cuando llegan mensajes (streaming paso a paso)
+  useEffect(() => {
+    chatMessagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+  }, [messages])
   
   // Sin datos de hoy: no confundir con "valores en cero"
   const hasTodayData = todayBiometrics != null && !bioLoading
 
   // Si no hay datos de hoy, abrir automáticamente Bio-Tracker (solo una vez por carga)
   const hasAutoOpenedBiotracker = useRef(false)
+  const chatMessagesEndRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (bioLoading || hasAutoOpenedBiotracker.current) return
     if (!hasTodayData) {
@@ -635,7 +641,9 @@ export default function Page() {
                       </div>
                     </div>
                   )}
-                  {messages.map((msg, idx) => (
+                  {messages.map((msg, idx) => {
+                    const isStreamingBubble = msg.role === 'ai' && idx === messages.length - 1 && chatLoading
+                    return (
                     <div
                       key={idx}
                       className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} transition-opacity duration-300`}
@@ -646,13 +654,16 @@ export default function Page() {
                         </div>
                       )}
                       <div
-                        className={`max-w-[85%] rounded-2xl px-4 py-3 transition-all duration-300 ${
+                        className={`max-w-[85%] rounded-2xl px-4 py-3 transition-all duration-300 ${isStreamingBubble ? 'min-h-[2.5rem]' : ''} ${
                           msg.role === 'user'
                             ? 'bg-[hsl(var(--chat-uber-green))] text-white rounded-br-md shadow-lg shadow-black/20'
                             : 'bg-[hsl(var(--chat-bubble-ai))] text-foreground border border-[hsl(var(--chat-border))] rounded-bl-md backdrop-blur-sm'
                         }`}
                       >
                         <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                        {isStreamingBubble && !msg.text && (
+                          <span className="inline-block w-2 h-4 ml-0.5 bg-muted-foreground/60 animate-pulse rounded-sm" aria-hidden />
+                        )}
                         {msg.sources && msg.sources.length > 0 && (
                           <Accordion type="single" collapsible className="mt-3">
                             <AccordionItem value="sources" className="border-0">
@@ -678,8 +689,10 @@ export default function Page() {
                       </div>
                       {msg.role === 'user' && <div className="w-8 flex-shrink-0" />}
                     </div>
-                  ))}
-                  {chatLoading && (
+                    )
+                  })}
+                  <div ref={chatMessagesEndRef} />
+                  {chatLoading && messages[messages.length - 1]?.role !== 'ai' && (
                     <div className="flex gap-3 justify-start">
                       <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[hsl(var(--chat-uber-green))] flex items-center justify-center shadow-lg ring-2 ring-border dark:ring-white/10 animate-pulse">
                         <Brain className="h-4 w-4 text-white" />
