@@ -97,3 +97,5 @@ apps/dashboard/.env*.local
 scripts/db/reports/*.json
 scripts/db/reports/*.md
 !scripts/db/reports/.gitkeep
+
+.pnpm-store/
