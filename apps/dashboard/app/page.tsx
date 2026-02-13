@@ -17,9 +17,11 @@ import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Progress } from '@/components/ui/progress'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useICD } from '@/hooks/use-icd'
 import { useTodayBiometrics, useRecentBiometrics } from '@/hooks/use-biometrics'
+import { BiometricInputManual } from '@/components/biometric-input-manual'
 import { useChat } from '@/hooks/use-chat'
 import { api } from '@/lib/api'
 
@@ -35,6 +37,7 @@ export default function Page() {
   // Hooks para datos reales
   const { icd, loading: icdLoading } = useICD()
   const { biometrics: todayBiometrics, loading: bioLoading } = useTodayBiometrics()
+  const { biometrics: recentBiometrics } = useRecentBiometrics(7)
   const { messages, loading: chatLoading, sendMessage, clearMessages } = useChat()
   
   // Datos calculados
@@ -64,6 +67,22 @@ export default function Page() {
     recovery: (todayBiometrics?.body_resources ?? 0) > 70 ? 'Óptima' :
               (todayBiometrics?.body_resources ?? 0) > 50 ? 'Normal' : 'Baja'
   }
+
+  /** Formatea minutos a "X h Y min" para el desglose de sueño en el dashboard */
+  const formatMinToHoursMin = (min: number): string => {
+    const h = Math.floor(min / 60)
+    const m = min % 60
+    if (h === 0) return `${m} min`
+    if (m === 0) return `${h} h`
+    return `${h} h ${m} min`
+  }
+
+  const hasSleepBreakdown =
+    hasTodayData &&
+    (todayBiometrics?.sleep_total_min != null ||
+      todayBiometrics?.deep_sleep_min != null ||
+      todayBiometrics?.rem_sleep_min != null ||
+      todayBiometrics?.light_sleep_min != null)
 
   const [bioData, setBioData] = useState({
     energia: todayBiometrics?.energy_level ?? 5,
@@ -428,6 +447,46 @@ export default function Page() {
                 )}
               </div>
 
+              {/* Desglose de sueño (total, profundo, REM, ligero) en horas-min */}
+              {hasSleepBreakdown && (
+                <Card className="transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-semibold text-foreground">Desglose de sueño</CardTitle>
+                      <Moon className="h-4 w-4 text-slate-400" />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                      {todayBiometrics?.sleep_total_min != null && (
+                        <div>
+                          <p className="text-muted-foreground text-xs uppercase">Total</p>
+                          <p className="font-semibold tabular-nums">{formatMinToHoursMin(todayBiometrics.sleep_total_min)}</p>
+                        </div>
+                      )}
+                      {todayBiometrics?.deep_sleep_min != null && (
+                        <div>
+                          <p className="text-muted-foreground text-xs uppercase">Profundo</p>
+                          <p className="font-semibold tabular-nums">{formatMinToHoursMin(todayBiometrics.deep_sleep_min)}</p>
+                        </div>
+                      )}
+                      {todayBiometrics?.rem_sleep_min != null && (
+                        <div>
+                          <p className="text-muted-foreground text-xs uppercase">REM</p>
+                          <p className="font-semibold tabular-nums">{formatMinToHoursMin(todayBiometrics.rem_sleep_min)}</p>
+                        </div>
+                      )}
+                      {todayBiometrics?.light_sleep_min != null && (
+                        <div>
+                          <p className="text-muted-foreground text-xs uppercase">Ligero</p>
+                          <p className="font-semibold tabular-nums">{formatMinToHoursMin(todayBiometrics.light_sleep_min)}</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Study Streak */}
               <Card>
                 <CardHeader>
@@ -636,137 +695,171 @@ export default function Page() {
             <div className="space-y-6">
               <div>
                 <h2 className="text-3xl font-bold text-balance text-foreground">Bio-Tracker</h2>
-                <p className="text-slate-400 mt-1 leading-relaxed">Registra tus datos subjetivos diarios</p>
+                <p className="text-slate-400 mt-1 leading-relaxed">Registra tus datos diarios: sueño, corazón y recursos</p>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="font-semibold">Datos Biométricos Subjetivos</CardTitle>
-                  <CardDescription className="text-slate-400 leading-relaxed">Ajusta los valores según tu estado actual</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="energia" className="text-sm font-medium text-foreground mb-2 block">
-                        Nivel de Energía: {bioData.energia}/10
-                      </Label>
-                      <Slider
-                        id="energia"
-                        min={1}
-                        max={10}
-                        step={1}
-                        value={[bioData.energia]}
-                        onValueChange={(v) => setBioData({ ...bioData, energia: v[0] })}
+              <Tabs defaultValue="manual" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 rounded-xl bg-muted/50 p-1">
+                  <TabsTrigger value="manual" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                    Sincronización matutina
+                  </TabsTrigger>
+                  <TabsTrigger value="subjective" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                    Datos subjetivos
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="manual" className="mt-4">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <BiometricInputManual
+                        recentBiometrics={recentBiometrics}
+                        saving={saving}
+                        onSave={async (payload) => {
+                          setSaving(true)
+                          try {
+                            await api.saveBiometrics(payload)
+                            await api.saveConfounders({ date: payload.date as string, notes: '' })
+                            window.location.reload()
+                          } catch (error) {
+                            console.error('Error guardando datos:', error)
+                            alert('Error al guardar. Ver consola.')
+                          } finally {
+                            setSaving(false)
+                          }
+                        }}
                       />
-                    </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                <TabsContent value="subjective" className="mt-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="font-semibold">Datos Biométricos Subjetivos</CardTitle>
+                      <CardDescription className="text-slate-400 leading-relaxed">Ajusta los valores según tu estado actual</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="energia" className="text-sm font-medium text-foreground mb-2 block">
+                            Nivel de Energía: {bioData.energia}/10
+                          </Label>
+                          <Slider
+                            id="energia"
+                            min={1}
+                            max={10}
+                            step={1}
+                            value={[bioData.energia]}
+                            onValueChange={(v) => setBioData({ ...bioData, energia: v[0] })}
+                          />
+                        </div>
 
-                    <div>
-                      <Label htmlFor="claridad" className="text-sm font-medium mb-2 block">
-                        Claridad Mental: {bioData.claridad}/10
-                      </Label>
-                      <Slider
-                        id="claridad"
-                        min={1}
-                        max={10}
-                        step={1}
-                        value={[bioData.claridad]}
-                        onValueChange={(v) => setBioData({ ...bioData, claridad: v[0] })}
-                      />
-                    </div>
+                        <div>
+                          <Label htmlFor="claridad" className="text-sm font-medium mb-2 block">
+                            Claridad Mental: {bioData.claridad}/10
+                          </Label>
+                          <Slider
+                            id="claridad"
+                            min={1}
+                            max={10}
+                            step={1}
+                            value={[bioData.claridad]}
+                            onValueChange={(v) => setBioData({ ...bioData, claridad: v[0] })}
+                          />
+                        </div>
 
-                    <div>
-                      <Label htmlFor="motivacion" className="text-sm font-medium mb-2 block">
-                        Motivación: {bioData.motivacion}/10
-                      </Label>
-                      <Slider
-                        id="motivacion"
-                        min={1}
-                        max={10}
-                        step={1}
-                        value={[bioData.motivacion]}
-                        onValueChange={(v) => setBioData({ ...bioData, motivacion: v[0] })}
-                      />
-                    </div>
+                        <div>
+                          <Label htmlFor="motivacion" className="text-sm font-medium mb-2 block">
+                            Motivación: {bioData.motivacion}/10
+                          </Label>
+                          <Slider
+                            id="motivacion"
+                            min={1}
+                            max={10}
+                            step={1}
+                            value={[bioData.motivacion]}
+                            onValueChange={(v) => setBioData({ ...bioData, motivacion: v[0] })}
+                          />
+                        </div>
 
-                    <div>
-                      <Label htmlFor="dolor" className="text-sm font-medium mb-2 block">
-                        Dolor Muscular: {bioData.dolor}/10
-                      </Label>
-                      <Slider
-                        id="dolor"
-                        min={1}
-                        max={10}
-                        step={1}
-                        value={[bioData.dolor]}
-                        onValueChange={(v) => setBioData({ ...bioData, dolor: v[0] })}
-                      />
-                    </div>
-                  </div>
+                        <div>
+                          <Label htmlFor="dolor" className="text-sm font-medium mb-2 block">
+                            Dolor Muscular: {bioData.dolor}/10
+                          </Label>
+                          <Slider
+                            id="dolor"
+                            min={1}
+                            max={10}
+                            step={1}
+                            value={[bioData.dolor]}
+                            onValueChange={(v) => setBioData({ ...bioData, dolor: v[0] })}
+                          />
+                        </div>
+                      </div>
 
-                  <div>
-                    <Label htmlFor="animo" className="text-sm font-medium mb-2 block">
-                      Estado de Ánimo
-                    </Label>
-                    <Select value={bioData.animo} onValueChange={(v) => setBioData({ ...bioData, animo: v })}>
-                      <SelectTrigger id="animo">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="enfocado">Enfocado</SelectItem>
-                        <SelectItem value="ansioso">Ansioso</SelectItem>
-                        <SelectItem value="cansado">Cansado</SelectItem>
-                        <SelectItem value="neutral">Neutral</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      <div>
+                        <Label htmlFor="animo" className="text-sm font-medium mb-2 block">
+                          Estado de Ánimo
+                        </Label>
+                        <Select value={bioData.animo} onValueChange={(v) => setBioData({ ...bioData, animo: v })}>
+                          <SelectTrigger id="animo">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="enfocado">Enfocado</SelectItem>
+                            <SelectItem value="ansioso">Ansioso</SelectItem>
+                            <SelectItem value="cansado">Cansado</SelectItem>
+                            <SelectItem value="neutral">Neutral</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  <div>
-                    <Label htmlFor="notas" className="text-sm font-medium mb-2 block">
-                      Notas del día
-                    </Label>
-                    <Textarea
-                      id="notas"
-                      placeholder="Escribe cualquier contexto adicional sobre tu estado actual..."
-                      value={bioData.notas}
-                      onChange={(e) => setBioData({ ...bioData, notas: e.target.value })}
-                      rows={4}
-                    />
-                  </div>
+                      <div>
+                        <Label htmlFor="notas" className="text-sm font-medium mb-2 block">
+                          Notas del día
+                        </Label>
+                        <Textarea
+                          id="notas"
+                          placeholder="Escribe cualquier contexto adicional sobre tu estado actual..."
+                          value={bioData.notas}
+                          onChange={(e) => setBioData({ ...bioData, notas: e.target.value })}
+                          rows={4}
+                        />
+                      </div>
 
-                  <Button 
-                    className="w-full" 
-                    size="lg"
-                    onClick={async () => {
-                      setSaving(true)
-                      try {
-                        const today = new Date().toISOString().split('T')[0]
-                        await api.saveBiometrics({
-                          date: today,
-                          energy_level: bioData.energia,
-                          mental_clarity: bioData.claridad,
-                          motivation: bioData.motivacion,
-                          muscle_soreness: bioData.dolor,
-                          mood: bioData.animo,
-                        })
-                        await api.saveConfounders({
-                          date: today,
-                          notes: bioData.notas,
-                        })
-                        // Refrescar datos
-                        window.location.reload()
-                      } catch (error) {
-                        console.error('Error guardando datos:', error)
-                        alert('Error al guardar datos. Ver consola para más detalles.')
-                      } finally {
-                        setSaving(false)
-                      }
-                    }}
-                    disabled={saving}
-                  >
-                    {saving ? 'Guardando...' : '💾 Calcular ICD y Sincronizar Suunto'}
-                  </Button>
-                </CardContent>
-              </Card>
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={async () => {
+                          setSaving(true)
+                          try {
+                            const today = new Date().toISOString().split('T')[0]
+                            await api.saveBiometrics({
+                              date: today,
+                              energy_level: bioData.energia,
+                              mental_clarity: bioData.claridad,
+                              motivation: bioData.motivacion,
+                              muscle_soreness: bioData.dolor,
+                              mood: bioData.animo,
+                            })
+                            await api.saveConfounders({
+                              date: today,
+                              notes: bioData.notas,
+                            })
+                            window.location.reload()
+                          } catch (error) {
+                            console.error('Error guardando datos:', error)
+                            alert('Error al guardar datos. Ver consola para más detalles.')
+                          } finally {
+                            setSaving(false)
+                          }
+                        }}
+                        disabled={saving}
+                      >
+                        {saving ? 'Guardando...' : '💾 Guardar subjetivos y calcular ICD'}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
             </div>
           )}
 

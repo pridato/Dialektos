@@ -169,6 +169,10 @@ async def get_today_biometrics():
             "ln_rmssd": record.ln_rmssd,
             "hrv_baseline_7d": record.hrv_baseline_7d,
             "sleep_quality": record.sleep_quality,
+            "sleep_total_min": record.sleep_total_min,
+            "deep_sleep_min": record.deep_sleep_min,
+            "rem_sleep_min": record.rem_sleep_min,
+            "light_sleep_min": record.light_sleep_min,
             "body_resources": record.body_resources,
             "energy_level": record.energy_level,
             "mental_clarity": record.mental_clarity,
@@ -194,8 +198,10 @@ async def get_recent_biometrics(days: int = 14):
                 "date": r.date.isoformat(),
                 "icd_score": r.icd_score,
                 "hrv_rmssd": r.hrv_rmssd,
+                "resting_hr": r.resting_hr,
                 "sleep_quality": r.sleep_quality,
                 "body_resources": r.body_resources,
+                "training_load": r.training_load,
             }
             for r in records
         ]
