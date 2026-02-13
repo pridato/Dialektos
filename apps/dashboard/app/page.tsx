@@ -337,9 +337,19 @@ export default function Page() {
           )}
           {currentView === 'dashboard' && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-3xl font-bold text-balance text-foreground">Panel de Control</h2>
-                <p className="text-slate-400 mt-1 leading-relaxed">Tu cockpit cognitivo personalizado</p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-3xl font-bold text-balance text-foreground">Panel de Control</h2>
+                  <p className="text-slate-400 mt-1 leading-relaxed">Tu cockpit cognitivo personalizado</p>
+                </div>
+                <Button
+                  onClick={() => setCurrentView('chat')}
+                  size="lg"
+                  className="bg-[hsl(var(--deep-work))] hover:brightness-110 text-white rounded-full shadow-lg shrink-0 gap-2 border-0"
+                >
+                  <MessageSquare className="h-5 w-5" />
+                  Ir al Chat
+                </Button>
               </div>
 
               {/* ICD Hero Section */}
@@ -661,7 +671,7 @@ export default function Page() {
                             : 'bg-[hsl(var(--chat-bubble-ai))] text-foreground border border-[hsl(var(--chat-border))] rounded-bl-md backdrop-blur-sm'
                         }`}
                       >
-                        <div className={`w-full min-w-0 ${isStreamingBubble ? 'font-mono' : ''}`}>
+                        <div className="w-full min-w-0">
                           <MarkdownRenderer content={msg.text} />
                         </div>
                         {msg.sources && msg.sources.length > 0 && (
