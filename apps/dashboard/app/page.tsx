@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import * as VisuallyHiddenPrimitive from '@radix-ui/react-visually-hidden'
 import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Progress } from '@/components/ui/progress'
@@ -201,6 +202,9 @@ export default function Page() {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
+            <VisuallyHiddenPrimitive.Root asChild>
+              <SheetTitle>Menú de navegación</SheetTitle>
+            </VisuallyHiddenPrimitive.Root>
             <div className="p-6 border-b border-border">
               <h1 className="text-2xl font-bold">Dialektos</h1>
               <p className="text-sm text-muted-foreground mt-1">Sistema RAG Adaptativo</p>

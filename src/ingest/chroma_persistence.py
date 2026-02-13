@@ -83,10 +83,73 @@ class ChromaDBPersistence:
             self.persist_directory.mkdir(parents=True, exist_ok=True)
             
             # Inicializar cliente de ChromaDB
-            self.client = chromadb.PersistentClient(
-                path=str(self.persist_directory),
-                settings=Settings(anonymized_telemetry=False)
-            )
+            # Manejar posibles errores de esquema incompatible en la base de datos SQLite
+            try:
+                self.client = chromadb.PersistentClient(
+                    path=str(self.persist_directory),
+                    settings=Settings(anonymized_telemetry=False)
+                )
+            except Exception as client_error:
+                error_str = str(client_error).lower()
+                if "no such column" in error_str or "collections.topic" in error_str or "sqlite" in error_str:
+                    logger.warning(
+                        f"Error de esquema incompatible al inicializar cliente ChromaDB: {client_error}. "
+                        "Esto puede ocurrir después de actualizar ChromaDB. "
+                        "Eliminando completamente el directorio de ChromaDB y recreando desde cero..."
+                    )
+                    # Eliminar completamente el directorio de ChromaDB
+                    import shutil
+                    if self.persist_directory.exists():
+                        try:
+                            shutil.rmtree(self.persist_directory)
+                            logger.info(f"Directorio de ChromaDB eliminado completamente: {self.persist_directory}")
+                        except Exception as rmtree_error:
+                            logger.warning(f"Error al eliminar directorio: {rmtree_error}. Intentando eliminar archivos individualmente...")
+                            # Si falla rmtree, intentar eliminar archivos individualmente
+                            try:
+                                for item in self.persist_directory.rglob("*"):
+                                    try:
+                                        if item.is_file():
+                                            item.unlink()
+                                        elif item.is_dir():
+                                            shutil.rmtree(item)
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+                    
+                    # Recrear el directorio vacío
+                    self.persist_directory.mkdir(parents=True, exist_ok=True)
+                    logger.info(f"Directorio de ChromaDB recreado: {self.persist_directory}")
+                    
+                    # Esperar un momento para asegurar que todos los archivos se hayan cerrado
+                    import time
+                    time.sleep(0.5)
+                    
+                    # Reintentar inicializar el cliente con base de datos limpia
+                    try:
+                        self.client = chromadb.PersistentClient(
+                            path=str(self.persist_directory),
+                            settings=Settings(anonymized_telemetry=False)
+                        )
+                        logger.info("Cliente ChromaDB inicializado después de limpiar base de datos")
+                    except Exception as retry_error:
+                        error_str_retry = str(retry_error).lower()
+                        if "no such column" in error_str_retry or "collections.topic" in error_str_retry:
+                            logger.error(
+                                f"Error persistente al recrear cliente después de limpiar: {retry_error}. "
+                                "Esto puede indicar un problema con la versión de ChromaDB. "
+                                "Intenta actualizar ChromaDB: pip install --upgrade chromadb"
+                            )
+                            raise RuntimeError(
+                                f"No se pudo inicializar ChromaDB después de limpiar la base de datos. "
+                                f"Error: {retry_error}. "
+                                "Considera actualizar ChromaDB: pip install --upgrade chromadb"
+                            ) from retry_error
+                        else:
+                            raise
+                else:
+                    raise
             
             # Configurar función de embedding personalizada
             logger.info(f"Configurando modelo de embeddings: {model_name}")
@@ -95,17 +158,139 @@ class ChromaDBPersistence:
             )
             
             # Crear o recuperar colección con embedding function personalizada
-            self.collection = self.client.get_or_create_collection(
-                name=collection_name,
-                embedding_function=self.embedding_function,
-                metadata={"hnsw:space": "cosine"}  # Usar similitud coseno
-            )
+            # Manejar errores de esquema incompatible que pueden ocurrir después de actualizar ChromaDB
+            try:
+                # Primero intentar obtener la colección existente
+                try:
+                    self.collection = self.client.get_collection(
+                        name=collection_name,
+                        embedding_function=self.embedding_function
+                    )
+                    logger.info(f"Colección '{collection_name}' recuperada exitosamente")
+                except Exception:
+                    # Si no existe o hay error, crear una nueva
+                    self.collection = self.client.create_collection(
+                        name=collection_name,
+                        embedding_function=self.embedding_function,
+                        metadata={"hnsw:space": "cosine"}  # Usar similitud coseno
+                    )
+                    logger.info(f"Colección '{collection_name}' creada exitosamente")
+            except Exception as collection_error:
+                # Manejar errores de esquema incompatible (ej: "no such column: collections.topic")
+                error_str = str(collection_error).lower()
+                if "no such column" in error_str or "collections.topic" in error_str or "sqlite" in error_str:
+                    logger.warning(
+                        f"Error de esquema incompatible detectado: {collection_error}. "
+                        "Esto puede ocurrir después de actualizar ChromaDB. "
+                        "Eliminando completamente el directorio de ChromaDB y recreando desde cero..."
+                    )
+                    
+                    # Cerrar el cliente actual antes de eliminar archivos
+                    try:
+                        del self.client
+                    except:
+                        pass
+                    
+                    # Eliminar completamente el directorio de ChromaDB
+                    import shutil
+                    if self.persist_directory.exists():
+                        try:
+                            shutil.rmtree(self.persist_directory)
+                            logger.info(f"Directorio de ChromaDB eliminado completamente: {self.persist_directory}")
+                        except Exception as rmtree_error:
+                            logger.warning(f"Error al eliminar directorio: {rmtree_error}. Intentando eliminar archivos individualmente...")
+                            # Si falla rmtree, intentar eliminar archivos individualmente
+                            for item in self.persist_directory.rglob("*"):
+                                try:
+                                    if item.is_file():
+                                        item.unlink()
+                                    elif item.is_dir():
+                                        shutil.rmtree(item)
+                                except Exception as item_error:
+                                    logger.warning(f"No se pudo eliminar {item}: {item_error}")
+                    
+                    # Recrear el directorio vacío
+                    self.persist_directory.mkdir(parents=True, exist_ok=True)
+                    logger.info(f"Directorio de ChromaDB recreado: {self.persist_directory}")
+                    
+                    # Esperar un momento para asegurar que todos los archivos se hayan cerrado
+                    import time
+                    time.sleep(0.5)
+                    
+                    # Recrear el cliente con base de datos completamente limpia
+                    try:
+                        self.client = chromadb.PersistentClient(
+                            path=str(self.persist_directory),
+                            settings=Settings(anonymized_telemetry=False)
+                        )
+                        logger.info("Cliente ChromaDB recreado después de eliminar directorio completo")
+                    except Exception as client_recreate_error:
+                        error_str = str(client_recreate_error).lower()
+                        if "no such column" in error_str or "collections.topic" in error_str:
+                            # Si aún falla, puede haber archivos residuales, intentar limpiar de nuevo
+                            logger.warning("Error al recrear cliente después de limpiar. Limpiando de nuevo...")
+                            if self.persist_directory.exists():
+                                try:
+                                    shutil.rmtree(self.persist_directory)
+                                    self.persist_directory.mkdir(parents=True, exist_ok=True)
+                                except:
+                                    pass
+                            self.client = chromadb.PersistentClient(
+                                path=str(self.persist_directory),
+                                settings=Settings(anonymized_telemetry=False)
+                            )
+                            logger.info("Cliente ChromaDB recreado después de segunda limpieza")
+                        else:
+                            raise
+                    
+                    # Crear la colección desde cero con manejo de errores
+                    try:
+                        self.collection = self.client.create_collection(
+                            name=collection_name,
+                            embedding_function=self.embedding_function,
+                            metadata={"hnsw:space": "cosine"}
+                        )
+                        logger.info(f"Colección '{collection_name}' creada exitosamente desde cero")
+                    except Exception as create_collection_error:
+                        error_str = str(create_collection_error).lower()
+                        if "no such column" in error_str or "collections.topic" in error_str:
+                            # Si aún falla, puede ser un problema más profundo
+                            logger.error(
+                                f"Error persistente al crear colección después de limpiar: {create_collection_error}. "
+                                "Esto puede indicar un problema con la versión de ChromaDB. "
+                                "Intenta actualizar ChromaDB: pip install --upgrade chromadb"
+                            )
+                            raise RuntimeError(
+                                f"No se pudo crear la colección después de limpiar la base de datos. "
+                                f"Error: {create_collection_error}. "
+                                "Considera actualizar ChromaDB: pip install --upgrade chromadb"
+                            ) from create_collection_error
+                        else:
+                            raise
+                else:
+                    # Si es otro tipo de error, relanzarlo
+                    raise
             
             logger.info(f"ChromaDB inicializado correctamente")
             logger.info(f"   Directorio: {self.persist_directory}")
             logger.info(f"   Modelo: {model_name}")
             logger.info(f"   Colección: {collection_name}")
-            logger.info(f"   Elementos existentes: {self.collection.count()}")
+            
+            # Intentar obtener el conteo de elementos, manejando posibles errores de esquema
+            try:
+                count = self.collection.count()
+                logger.info(f"   Elementos existentes: {count}")
+            except Exception as count_error:
+                error_str = str(count_error).lower()
+                if "no such column" in error_str or "collections.topic" in error_str:
+                    logger.warning(
+                        f"Error al obtener conteo de elementos (esquema incompatible): {count_error}. "
+                        "La colección puede estar vacía o necesitar ser recreada."
+                    )
+                    logger.info(f"   Elementos existentes: desconocido (colección recién creada)")
+                else:
+                    logger.warning(f"Error al obtener conteo: {count_error}")
+                    logger.info(f"   Elementos existentes: desconocido")
             
         except ImportError as e:
             if "chromadb" in str(e):
@@ -114,6 +299,21 @@ class ChromaDBPersistence:
                 logger.error("sentence-transformers no está instalado. Ejecuta: pip install sentence-transformers")
             raise
         except Exception as e:
+            error_str = str(e).lower()
+            # Si es un error de esquema incompatible que no fue manejado antes, intentar limpiar
+            if ("no such column" in error_str or "collections.topic" in error_str) and not hasattr(self, 'client'):
+                logger.warning(
+                    f"Error de esquema incompatible detectado en bloque final: {e}. "
+                    "Intentando limpiar directorio y recrear..."
+                )
+                import shutil
+                if self.persist_directory.exists():
+                    try:
+                        shutil.rmtree(self.persist_directory)
+                        self.persist_directory.mkdir(parents=True, exist_ok=True)
+                        logger.info("Directorio limpiado. Intenta inicializar ChromaDB nuevamente.")
+                    except Exception as cleanup_error:
+                        logger.warning(f"Error al limpiar directorio: {cleanup_error}")
             logger.error(f"Error al inicializar ChromaDB: {str(e)}")
             raise
     

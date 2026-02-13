@@ -46,6 +46,10 @@ pyyaml>=6.0
 requests==2.31.0
 pydantic>=2.7.0
 tqdm>=4.66.0
+# httpx: Si tienes ollama instalado y hay conflicto de versiones, ejecuta:
+#   pip install --upgrade ollama
+# o desinstala ollama si no lo necesitas:
+#   pip uninstall ollama
 
 # notebook
 seaborn==0.13.2
