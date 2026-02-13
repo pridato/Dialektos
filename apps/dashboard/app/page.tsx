@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Menu, Home, MessageSquare, Activity, BarChart3, User, Settings, TrendingUp, TrendingDown, Brain, Battery, Moon, Heart, Zap, Target, Send, Sparkles } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
@@ -22,10 +22,12 @@ import { LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, To
 import { useICD } from '@/hooks/use-icd'
 import { useTodayBiometrics, useRecentBiometrics } from '@/hooks/use-biometrics'
 import { BiometricInputManual } from '@/components/biometric-input-manual'
+import { ActiveSessionHUD } from '@/components/active-session-hud'
 import { useChat } from '@/hooks/use-chat'
 import { api } from '@/lib/api'
+import type { StudySessionRecord } from '@/lib/session-types'
 
-type View = 'dashboard' | 'chat' | 'biotracker' | 'analytics'
+type View = 'dashboard' | 'chat' | 'biotracker' | 'analytics' | 'session'
 
 export default function Page() {
   const [currentView, setCurrentView] = useState<View>('dashboard')
@@ -54,6 +56,16 @@ export default function Page() {
   
   // Sin datos de hoy: no confundir con "valores en cero"
   const hasTodayData = todayBiometrics != null && !bioLoading
+
+  // Si no hay datos de hoy, abrir automáticamente Bio-Tracker (solo una vez por carga)
+  const hasAutoOpenedBiotracker = useRef(false)
+  useEffect(() => {
+    if (bioLoading || hasAutoOpenedBiotracker.current) return
+    if (!hasTodayData) {
+      hasAutoOpenedBiotracker.current = true
+      setCurrentView('biotracker')
+    }
+  }, [bioLoading, hasTodayData])
 
   // Biometrics con valores por defecto (solo significativos si hasTodayData)
   const biometrics = {
@@ -171,6 +183,17 @@ export default function Page() {
         <BarChart3 className="mr-2 h-4 w-4" />
         Analíticas
       </Button>
+      <Button
+        variant="ghost"
+        className={navItemClass('session')}
+        onClick={() => {
+          setCurrentView('session')
+          if (mobile) setMobileMenuOpen(false)
+        }}
+      >
+        <Target className="mr-2 h-4 w-4" />
+        Sesión Focus
+      </Button>
     </nav>
   )
 
@@ -272,6 +295,17 @@ export default function Page() {
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden pt-16 lg:pt-0">
         <div className="flex-1 flex flex-col min-h-0 p-4 lg:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
           {/* Dashboard View */}
+          {currentView === 'session' && (
+            <ActiveSessionHUD
+              userId="local"
+              preSessionEnergy={biometrics.battery}
+              zone={zoneLabel}
+              onSessionComplete={(record: StudySessionRecord) => {
+                console.log('Sesión guardada:', record)
+                // TODO: api.saveStudySession(record) cuando exista el endpoint
+              }}
+            />
+          )}
           {currentView === 'dashboard' && (
             <div className="space-y-6">
               <div>
@@ -372,14 +406,18 @@ export default function Page() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {!hasTodayData ? (
                   <Card className="md:col-span-2 lg:col-span-4">
-                    <CardContent className="p-6">
-                      <p className="text-muted-foreground text-center mb-2">
+                    <CardContent className="p-6 flex flex-col items-center justify-center gap-4">
+                      <p className="text-muted-foreground text-center mb-0">
                         Sin datos biométricos para hoy
                       </p>
-                      <p className="text-sm text-muted-foreground text-center">
-                        Exporta datos desde la app Suunto a <code className="text-foreground">data/biometrics/</code> y ejecuta{' '}
-                        <code className="text-foreground">python scripts/data/ingest_suunto_json.py</code>, o añade el día en Bio-Tracker.
-                      </p>
+                      <Button
+                        onClick={() => setCurrentView('biotracker')}
+                        variant="default"
+                        size="lg"
+                        className="shrink-0"
+                      >
+                        Añadir día en Bio-Tracker
+                      </Button>
                     </CardContent>
                   </Card>
                 ) : (
@@ -717,7 +755,7 @@ export default function Page() {
                           setSaving(true)
                           try {
                             await api.saveBiometrics(payload)
-                            await api.saveConfounders({ date: payload.date as string, notes: '' })
+                            await api.saveConfounders({ date: payload.date as string, notes: (payload.notes as string) ?? '' })
                             window.location.reload()
                           } catch (error) {
                             console.error('Error guardando datos:', error)

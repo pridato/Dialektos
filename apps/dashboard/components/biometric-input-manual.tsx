@@ -2,16 +2,17 @@
 
 /**
  * Formulario gamificado de entrada manual de biométricos.
- * Dividido en 3 pasos semánticos: Sueño, Corazón, Recursos.
+ * Dividido en 4 pasos: Sueño, Corazón, Recursos, Percepción (subjetivo).
  * Valores por defecto: media móvil últimos 3 días cuando hay historial.
  */
 
 import * as React from 'react'
-import { Moon, Heart, Battery, ChevronRight, ChevronLeft, Zap } from 'lucide-react'
+import { Moon, Heart, Battery, Brain, ChevronRight, ChevronLeft, Zap, Frown, Meh, Smile, Laugh } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { cn } from '@/lib/utils'
 import type { RecentBiometric } from '@/lib/api'
@@ -20,6 +21,16 @@ const STEPS = [
   { id: 1, title: 'El Descanso', subtitle: '¿Cómo has dormido?', icon: Moon },
   { id: 2, title: 'La Fisiología', subtitle: '¿Qué dice tu corazón?', icon: Heart },
   { id: 3, title: 'El Estado', subtitle: 'Recursos y carga', icon: Battery },
+  { id: 4, title: 'La Percepción', subtitle: 'Datos subjetivos', icon: Brain },
+] as const
+
+/** Valores de ánimo en UI; al enviar se mapean al enum del backend (focused, anxious, tired, neutral). */
+const MOOD_OPTIONS = [
+  { value: 'pésimo', label: 'Pésimo', icon: Frown, apiValue: 'tired' as const },
+  { value: 'malo', label: 'Malo', icon: Frown, apiValue: 'anxious' as const },
+  { value: 'neutral', label: 'Neutral', icon: Meh, apiValue: 'neutral' as const },
+  { value: 'bueno', label: 'Bueno', icon: Smile, apiValue: 'focused' as const },
+  { value: 'excelente', label: 'Excelente', icon: Laugh, apiValue: 'focused' as const },
 ] as const
 
 export interface ManualBiometricFormValues {
@@ -33,6 +44,12 @@ export interface ManualBiometricFormValues {
   resting_hr: number
   body_resources: number
   training_load: number
+  energy_level: number
+  mental_clarity: number
+  motivation: number
+  muscle_soreness: number
+  mood: typeof MOOD_OPTIONS[number]['value']
+  notes: string
 }
 
 function averageLast3<T extends number | null>(
@@ -50,6 +67,24 @@ function averageLast3<T extends number | null>(
 function parseTimeToMinutes(t: string): number {
   if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return 0
   const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
+/** Convierte minutos a string "H:MM" para mostrar en inputs de duración (profundo/REM/ligero). */
+function minToTimeStr(min: number | null): string {
+  if (min == null) return ''
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return `${h}:${String(m).padStart(2, '0')}`
+}
+
+/** Parsea "H:MM" o "HH:MM" a minutos; devuelve null si vacío o inválido. */
+function parseDurationToMinutes(t: string): number | null {
+  const trimmed = t.trim()
+  if (!trimmed) return null
+  if (!/^\d{1,2}:\d{2}$/.test(trimmed)) return null
+  const [h, m] = trimmed.split(':').map(Number)
+  if (Number.isNaN(h) || Number.isNaN(m) || m < 0 || m > 59) return null
   return h * 60 + m
 }
 
@@ -94,7 +129,18 @@ export function BiometricInputManual({
     resting_hr: 58,
     body_resources: 65,
     training_load: 0,
+    energy_level: 5,
+    mental_clarity: 5,
+    motivation: 5,
+    muscle_soreness: 3,
+    mood: 'neutral',
+    notes: '',
   })
+
+  // Drafts para inputs h:min (profundo/REM/ligero) para no borrar mientras se escribe
+  const [draftDeep, setDraftDeep] = React.useState('')
+  const [draftRem, setDraftRem] = React.useState('')
+  const [draftLight, setDraftLight] = React.useState('')
 
   // Prellenar con media móvil de últimos 3 días cuando llega historial
   const hasPrefilled = React.useRef(false)
@@ -116,6 +162,7 @@ export function BiometricInputManual({
 
   const handleSubmit = async () => {
     const today = new Date().toISOString().split('T')[0]
+    const moodApi = MOOD_OPTIONS.find((o) => o.value === form.mood)?.apiValue ?? 'neutral'
     const payload = {
       date: today,
       sleep_quality: form.sleep_quality,
@@ -127,6 +174,12 @@ export function BiometricInputManual({
       resting_hr: form.resting_hr,
       body_resources: form.body_resources,
       training_load: form.training_load,
+      energy_level: form.energy_level,
+      mental_clarity: form.mental_clarity,
+      motivation: form.motivation,
+      muscle_soreness: form.muscle_soreness,
+      mood: moodApi,
+      notes: form.notes,
     }
     await onSave(payload)
   }
@@ -186,7 +239,7 @@ export function BiometricInputManual({
       <div>
         <h2 className="text-xl font-semibold text-foreground">Sincronización Matutina</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Paso {step} de 3 — {STEPS[step - 1].title}
+          Paso {step} de 4 — {STEPS[step - 1].title}
         </p>
       </div>
 
@@ -276,51 +329,60 @@ export function BiometricInputManual({
               <AccordionContent className="px-4 pb-4 pt-0">
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Profundo (min)</Label>
+                    <Label className="text-xs text-muted-foreground">Profundo (h:min)</Label>
                     <Input
-                      type="number"
-                      min={0}
-                      placeholder="—"
-                      value={form.deep_sleep_min ?? ''}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          deep_sleep_min: e.target.value === '' ? null : parseInt(e.target.value, 10) || null,
-                        }))
-                      }
-                      className="mt-1"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0:00"
+                      value={draftDeep !== '' ? draftDeep : minToTimeStr(form.deep_sleep_min)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setDraftDeep(v)
+                        const parsed = parseDurationToMinutes(v)
+                        if (parsed !== null) setForm((f) => ({ ...f, deep_sleep_min: parsed }))
+                      }}
+                      onBlur={() => {
+                        if (parseDurationToMinutes(draftDeep) !== null || draftDeep.trim() === '') setDraftDeep('')
+                      }}
+                      className="mt-1 font-mono"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">REM (min)</Label>
+                    <Label className="text-xs text-muted-foreground">REM (h:min)</Label>
                     <Input
-                      type="number"
-                      min={0}
-                      placeholder="—"
-                      value={form.rem_sleep_min ?? ''}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          rem_sleep_min: e.target.value === '' ? null : parseInt(e.target.value, 10) || null,
-                        }))
-                      }
-                      className="mt-1"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0:00"
+                      value={draftRem !== '' ? draftRem : minToTimeStr(form.rem_sleep_min)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setDraftRem(v)
+                        const parsed = parseDurationToMinutes(v)
+                        if (parsed !== null) setForm((f) => ({ ...f, rem_sleep_min: parsed }))
+                      }}
+                      onBlur={() => {
+                        if (parseDurationToMinutes(draftRem) !== null || draftRem.trim() === '') setDraftRem('')
+                      }}
+                      className="mt-1 font-mono"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Ligero (min)</Label>
+                    <Label className="text-xs text-muted-foreground">Ligero (h:min)</Label>
                     <Input
-                      type="number"
-                      min={0}
-                      placeholder="—"
-                      value={form.light_sleep_min ?? ''}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          light_sleep_min: e.target.value === '' ? null : parseInt(e.target.value, 10) || null,
-                        }))
-                      }
-                      className="mt-1"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0:00"
+                      value={draftLight !== '' ? draftLight : minToTimeStr(form.light_sleep_min)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setDraftLight(v)
+                        const parsed = parseDurationToMinutes(v)
+                        if (parsed !== null) setForm((f) => ({ ...f, light_sleep_min: parsed }))
+                      }}
+                      onBlur={() => {
+                        if (parseDurationToMinutes(draftLight) !== null || draftLight.trim() === '') setDraftLight('')
+                      }}
+                      className="mt-1 font-mono"
                     />
                   </div>
                 </div>
@@ -335,7 +397,7 @@ export function BiometricInputManual({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
             <Stepper
-              label="HRV (RMSSD)"
+              label="VFC (RMSSD)"
               unit="ms"
               value={form.hrv_rmssd}
               onChange={(v) => setForm((f) => ({ ...f, hrv_rmssd: v }))}
@@ -346,7 +408,7 @@ export function BiometricInputManual({
           </div>
           <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
             <Stepper
-              label="Frecuencia en reposo"
+              label="FC mínima diurna"
               unit="bpm"
               value={form.resting_hr}
               onChange={(v) => setForm((f) => ({ ...f, resting_hr: v }))}
@@ -401,7 +463,125 @@ export function BiometricInputManual({
         </div>
       )}
 
-      {/* Navegación */}
+      {/* Paso 4: La Percepción (subjetivo) */}
+      {step === 4 && (
+        <div className="space-y-6">
+          {/* Grid 2x2: sliders compactos */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+              <Label className="text-sm font-medium text-foreground">Nivel de Energía</Label>
+              <div className="flex items-center gap-3 mt-2">
+                <Slider
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={[form.energy_level]}
+                  onValueChange={([v]) => setForm((f) => ({ ...f, energy_level: v }))}
+                  className="flex-1 [&_.bg-primary]:bg-indigo-500 dark:[&_.bg-primary]:bg-indigo-500"
+                />
+                <span className="text-sm font-semibold tabular-nums min-w-[3rem] text-right">{form.energy_level}/10</span>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+              <Label className="text-sm font-medium text-foreground">Claridad Mental</Label>
+              <div className="flex items-center gap-3 mt-2">
+                <Slider
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={[form.mental_clarity]}
+                  onValueChange={([v]) => setForm((f) => ({ ...f, mental_clarity: v }))}
+                  className="flex-1 [&_.bg-primary]:bg-indigo-500 dark:[&_.bg-primary]:bg-indigo-500"
+                />
+                <span className="text-sm font-semibold tabular-nums min-w-[3rem] text-right">{form.mental_clarity}/10</span>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+              <Label className="text-sm font-medium text-foreground">Motivación</Label>
+              <div className="flex items-center gap-3 mt-2">
+                <Slider
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={[form.motivation]}
+                  onValueChange={([v]) => setForm((f) => ({ ...f, motivation: v }))}
+                  className="flex-1 [&_.bg-primary]:bg-indigo-500 dark:[&_.bg-primary]:bg-indigo-500"
+                />
+                <span className="text-sm font-semibold tabular-nums min-w-[3rem] text-right">{form.motivation}/10</span>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+              <Label className="text-sm font-medium text-foreground">Dolor Muscular</Label>
+              <div className="flex items-center gap-3 mt-2">
+                <Slider
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={[form.muscle_soreness]}
+                  onValueChange={([v]) => setForm((f) => ({ ...f, muscle_soreness: v }))}
+                  className="flex-1 [&_.bg-primary]:bg-rose-500 dark:[&_.bg-primary]:bg-rose-500"
+                />
+                <span className="text-sm font-semibold tabular-nums min-w-[3rem] text-right">{form.muscle_soreness}/10</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Estado de ánimo: 5 botones con iconos */}
+          <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+            <Label className="text-sm font-medium text-foreground block mb-3">Estado de ánimo</Label>
+            <div className="flex flex-wrap gap-2">
+              {MOOD_OPTIONS.map((opt) => {
+                const Icon = opt.icon
+                const isSelected = form.mood === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, mood: opt.value }))}
+                    className={cn(
+                      'flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all border',
+                      isSelected
+                        ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800 ring-2 ring-indigo-200 dark:ring-indigo-700 ring-offset-2 dark:ring-offset-background text-indigo-700 dark:text-indigo-300'
+                        : 'bg-slate-50 dark:bg-muted/50 border-slate-200 dark:border-border text-muted-foreground hover:border-slate-300 dark:hover:border-border hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Notas */}
+          <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+            <Label htmlFor="notes-perception" className="text-sm font-medium text-foreground block mb-2">
+              Notas
+            </Label>
+            <Textarea
+              id="notes-perception"
+              placeholder="¿Algún factor externo? (Ej: Ayuno, Estrés por examen...)"
+              value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              rows={3}
+              className="resize-none rounded-xl border-slate-200 dark:border-border bg-white dark:bg-background focus-visible:ring-indigo-500"
+            />
+          </div>
+
+          {/* Botón principal: solo en paso 4 */}
+          <Button
+            onClick={handleSubmit}
+            disabled={saving}
+            variant="default"
+            size="lg"
+            className="w-full rounded-xl h-12 text-base font-medium shadow-sm hover:shadow-md transition-shadow"
+          >
+            {saving ? 'Guardando…' : '💾 Guardar y Calcular ICD'}
+          </Button>
+        </div>
+      )}
+
+      {/* Navegación (Atrás / Siguiente; en paso 4 el CTA está dentro del paso) */}
       <div className="flex justify-between gap-3 pt-2">
         <Button
           type="button"
@@ -413,16 +593,12 @@ export function BiometricInputManual({
           <ChevronLeft className="h-4 w-4" />
           Atrás
         </Button>
-        {step < 3 ? (
+        {step < 4 ? (
           <Button type="button" onClick={() => setStep((s) => s + 1)} className="gap-1">
             Siguiente
             <ChevronRight className="h-4 w-4" />
           </Button>
-        ) : (
-          <Button onClick={handleSubmit} disabled={saving} className="gap-1">
-            {saving ? 'Guardando…' : 'Calcular ICD y guardar'}
-          </Button>
-        )}
+        ) : null}
       </div>
     </div>
   )
