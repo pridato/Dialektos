@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Menu, Home, MessageSquare, Activity, BarChart3, User, Settings, TrendingUp, TrendingDown, Brain, Battery, Moon, Heart, Zap, Target } from 'lucide-react'
+import { Menu, Home, MessageSquare, Activity, BarChart3, User, Settings, TrendingUp, TrendingDown, Brain, Battery, Moon, Heart, Zap, Target, Send, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -74,9 +74,10 @@ export default function Page() {
   })
   const [saving, setSaving] = useState(false)
 
-  const chatMessages = [
-    { role: 'user', text: '¿Cuáles son los supuestos de la regresión lineal?' },
-    { role: 'ai', text: 'Los supuestos fundamentales de la regresión lineal son: 1) Linealidad, 2) Independencia de errores, 3) Homocedasticidad, 4) Normalidad de residuos. Te recomiendo revisar el teorema de Gauss-Markov para entender por qué estos supuestos son importantes.', sources: ['Introducción a la Regresión Lineal (p. 45)', 'Estadística Aplicada (p. 112)'] }
+  const suggestionChips = [
+    '¿Cuáles son los supuestos de la regresión lineal?',
+    'Explícame el teorema de Gauss-Markov',
+    'Diferencia entre correlación y causalidad',
   ]
 
   const scatterData = Array.from({ length: 30 }, (_, i) => ({
@@ -97,11 +98,18 @@ export default function Page() {
     studied: Math.random() > 0.3
   }))
 
+  const navItemClass = (view: View) =>
+    `justify-start transition-all duration-300 rounded-xl pl-3 ${
+      currentView === view
+        ? 'bg-primary/10 text-foreground font-semibold border-l-4 border-l-accent border border-white/10'
+        : 'text-slate-400 hover:text-foreground hover:bg-white/5'
+    }`
+
   const NavLinks = ({ mobile = false }: { mobile?: boolean }) => (
-    <nav className={`flex ${mobile ? 'flex-col' : 'flex-col'} gap-1`}>
+    <nav className="flex flex-col gap-1">
       <Button
-        variant={currentView === 'dashboard' ? 'secondary' : 'ghost'}
-        className="justify-start"
+        variant="ghost"
+        className={navItemClass('dashboard')}
         onClick={() => {
           setCurrentView('dashboard')
           if (mobile) setMobileMenuOpen(false)
@@ -111,8 +119,8 @@ export default function Page() {
         Inicio
       </Button>
       <Button
-        variant={currentView === 'chat' ? 'secondary' : 'ghost'}
-        className="justify-start"
+        variant="ghost"
+        className={navItemClass('chat')}
         onClick={() => {
           setCurrentView('chat')
           if (mobile) setMobileMenuOpen(false)
@@ -122,8 +130,8 @@ export default function Page() {
         Chat Socrático
       </Button>
       <Button
-        variant={currentView === 'biotracker' ? 'secondary' : 'ghost'}
-        className="justify-start"
+        variant="ghost"
+        className={navItemClass('biotracker')}
         onClick={() => {
           setCurrentView('biotracker')
           if (mobile) setMobileMenuOpen(false)
@@ -133,8 +141,8 @@ export default function Page() {
         Bio-Tracker
       </Button>
       <Button
-        variant={currentView === 'analytics' ? 'secondary' : 'ghost'}
-        className="justify-start"
+        variant="ghost"
+        className={navItemClass('analytics')}
         onClick={() => {
           setCurrentView('analytics')
           if (mobile) setMobileMenuOpen(false)
@@ -147,18 +155,18 @@ export default function Page() {
   )
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 flex-col border-r border-border bg-card">
-        <div className="p-6 border-b border-border">
+    <div className="flex h-screen overflow-hidden bg-background app-bg">
+      {/* Desktop Sidebar — Glassmorphism + indicador activo */}
+      <aside className="hidden lg:flex w-64 flex-col border-r border-white/10 bg-slate-900/50 backdrop-blur-md shadow-lg shadow-blue-900/10">
+        <div className="p-6 border-b border-white/10">
           <h1 className="text-2xl font-bold text-foreground">Dialektos</h1>
-          <p className="text-sm text-muted-foreground mt-1">Sistema RAG Adaptativo</p>
+          <p className="text-sm text-slate-400 mt-1 leading-relaxed">Sistema RAG Adaptativo</p>
         </div>
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-white/10">
           {icdLoading ? (
             <div className="text-sm text-muted-foreground">Cargando ICD...</div>
           ) : icdScore !== null ? (
-            <div className="rounded-lg p-4" style={{ 
+            <div className="rounded-xl p-4" style={{ 
               background: `linear-gradient(135deg, ${zoneColor}22, ${zoneColor}08)`,
               border: `1px solid ${zoneColor}44`
             }}>
@@ -173,7 +181,7 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <div className="rounded-lg p-4 bg-muted">
+            <div className="rounded-xl p-4 bg-muted">
               <div className="text-xs text-muted-foreground mb-1">ICD Hoy</div>
               <div className="text-3xl font-bold text-muted-foreground">—</div>
               <div className="text-xs text-muted-foreground mt-2">Sin datos</div>
@@ -183,7 +191,7 @@ export default function Page() {
         <div className="flex-1 p-4">
           <NavLinks />
         </div>
-        <div className="p-4 border-t border-border space-y-2">
+        <div className="p-4 border-t border-white/10 space-y-2">
           <Button variant="ghost" className="w-full justify-start">
             <User className="mr-2 h-4 w-4" />
             Perfil
@@ -195,8 +203,8 @@ export default function Page() {
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b border-border p-4 flex items-center justify-between">
+      {/* Mobile Header — Glassmorphism */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900/50 backdrop-blur-md border-b border-white/10 p-4 flex items-center justify-between shadow-lg shadow-blue-900/10">
         <h1 className="text-xl font-bold">Dialektos</h1>
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild>
@@ -230,14 +238,14 @@ export default function Page() {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pt-16 lg:pt-0">
-        <div className="p-4 lg:p-8 max-w-7xl mx-auto">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden pt-16 lg:pt-0">
+        <div className="flex-1 flex flex-col min-h-0 p-4 lg:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
           {/* Dashboard View */}
           {currentView === 'dashboard' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-3xl font-bold text-balance">Panel de Control</h2>
-                <p className="text-muted-foreground mt-1">Tu cockpit cognitivo personalizado</p>
+                <h2 className="text-3xl font-bold text-balance text-foreground">Panel de Control</h2>
+                <p className="text-slate-400 mt-1 leading-relaxed">Tu cockpit cognitivo personalizado</p>
               </div>
 
               {/* ICD Hero Section */}
@@ -248,43 +256,51 @@ export default function Page() {
                   </CardContent>
                 </Card>
               ) : icdScore !== null ? (
-                <Card className="border-2" style={{ borderColor: zoneColor }}>
+                <Card className="border-2 rounded-3xl shadow-glow transition-all duration-300" style={{ borderColor: zoneColor }}>
                   <CardContent className="p-6 lg:p-8">
                     <div className="flex flex-col lg:flex-row items-center gap-8">
-                      <div className="relative">
+                      <div className="relative drop-shadow-[0_0_24px_rgba(34,197,94,0.25)]">
                         <svg className="w-40 h-40 lg:w-48 lg:h-48" viewBox="0 0 200 200">
+                          <defs>
+                            <linearGradient id="icdRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                              <stop offset="0%" stopColor="hsl(142, 76%, 36%)" />
+                              <stop offset="100%" stopColor="hsl(217, 91%, 60%)" />
+                            </linearGradient>
+                          </defs>
                           <circle
                             cx="100"
                             cy="100"
                             r="80"
                             fill="none"
                             stroke="hsl(var(--muted))"
-                            strokeWidth="16"
+                            strokeWidth="14"
+                            className="opacity-40"
                           />
                           <circle
                             cx="100"
                             cy="100"
                             r="80"
                             fill="none"
-                            stroke={zoneColor}
-                            strokeWidth="16"
+                            stroke="url(#icdRingGradient)"
+                            strokeWidth="14"
                             strokeDasharray={`${(icdScore / 100) * 502.4} 502.4`}
                             strokeLinecap="round"
                             transform="rotate(-90 100 100)"
+                            className="transition-all duration-700 ease-out"
                           />
                           <text
                             x="100"
                             y="100"
                             textAnchor="middle"
                             dy="0.3em"
-                            className="text-5xl font-bold fill-foreground"
+                            className="text-5xl font-bold fill-foreground tabular-nums"
                           >
                             {Math.round(icdScore)}
                           </text>
                         </svg>
                       </div>
                       <div className="flex-1 text-center lg:text-left">
-                        <h3 className="text-2xl font-bold mb-2">Índice Cognitivo Diario (ICD)</h3>
+                        <h3 className="text-2xl font-bold mb-2 leading-tight">Índice Cognitivo Diario (ICD)</h3>
                         <div className="flex items-center justify-center lg:justify-start gap-2 mb-4">
                           <Badge 
                             className="text-lg px-4 py-1"
@@ -294,13 +310,13 @@ export default function Page() {
                           </Badge>
                         </div>
                         {icd?.strategy && (
-                          <Card className="bg-secondary/50">
+                          <Card className="bg-secondary/50 rounded-2xl">
                             <CardHeader className="pb-3">
-                              <CardTitle className="text-lg">Estrategia Actual</CardTitle>
+                              <CardTitle className="text-lg font-semibold">Estrategia Actual</CardTitle>
                             </CardHeader>
                             <CardContent>
-                              <p className="text-xl font-semibold text-balance">{icd.strategy.name}</p>
-                              <p className="text-sm text-muted-foreground mt-2">
+                              <p className="text-xl font-semibold text-balance leading-relaxed">{icd.strategy.name}</p>
+                              <p className="text-sm text-slate-400 mt-2 leading-relaxed">
                                 {icd.strategy.description}
                               </p>
                             </CardContent>
@@ -337,18 +353,18 @@ export default function Page() {
                   </Card>
                 ) : (
                   <>
-                    <Card>
+                    <Card className="transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm font-medium">VFC (lnRMSSD)</CardTitle>
-                          <Heart className="h-4 w-4 text-muted-foreground" />
+                          <CardTitle className="text-sm font-semibold text-foreground">VFC (lnRMSSD)</CardTitle>
+                          <Heart className="h-4 w-4 text-slate-400" />
                         </div>
                       </CardHeader>
                       <CardContent>
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-2xl font-bold">{biometrics.hrv.value} ms</p>
-                            <p className="text-xs text-muted-foreground">ln: {biometrics.hrv.ln}</p>
+                            <p className="text-2xl font-bold tabular-nums">{biometrics.hrv.value} ms</p>
+                            <p className="text-xs text-slate-400">ln: {biometrics.hrv.ln}</p>
                           </div>
                           {biometrics.hrv.trend === 'up' ? (
                             <TrendingUp className="h-6 w-6 text-green-500" />
@@ -359,37 +375,37 @@ export default function Page() {
                       </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm font-medium">Calidad de Sueño</CardTitle>
-                          <Moon className="h-4 w-4 text-muted-foreground" />
+                          <CardTitle className="text-sm font-semibold text-foreground">Calidad de Sueño</CardTitle>
+                          <Moon className="h-4 w-4 text-slate-400" />
                         </div>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-2xl font-bold mb-2">{biometrics.sleep}%</p>
+                        <p className="text-2xl font-bold mb-2 tabular-nums">{biometrics.sleep}%</p>
                         <Progress value={biometrics.sleep} className="h-2" />
                       </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm font-medium">Batería Corporal</CardTitle>
-                          <Battery className="h-4 w-4 text-muted-foreground" />
+                          <CardTitle className="text-sm font-semibold text-foreground">Batería Corporal</CardTitle>
+                          <Battery className="h-4 w-4 text-slate-400" />
                         </div>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-2xl font-bold mb-2">{biometrics.battery}/100</p>
+                        <p className="text-2xl font-bold mb-2 tabular-nums">{biometrics.battery}/100</p>
                         <Progress value={biometrics.battery} className="h-2" />
                       </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm font-medium">Estado Recuperación</CardTitle>
-                          <Zap className="h-4 w-4 text-muted-foreground" />
+                          <CardTitle className="text-sm font-semibold text-foreground">Estado Recuperación</CardTitle>
+                          <Zap className="h-4 w-4 text-slate-400" />
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -403,8 +419,8 @@ export default function Page() {
               {/* Study Streak */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Racha de Estudio</CardTitle>
-                  <CardDescription>Últimos 28 días</CardDescription>
+                  <CardTitle className="font-semibold">Racha de Estudio</CardTitle>
+                  <CardDescription className="text-slate-400">Últimos 28 días</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-7 gap-2">
@@ -431,83 +447,134 @@ export default function Page() {
             </div>
           )}
 
-          {/* Chat View */}
+          {/* Chat View — estilo ChatGPT + UI Uber */}
           {currentView === 'chat' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-3xl font-bold text-balance">Chat Socrático</h2>
-                  <p className="text-muted-foreground mt-1">Aprende mediante preguntas guiadas</p>
+            <div
+              className="chat-uber flex flex-col flex-1 min-h-0 rounded-2xl overflow-hidden border border-white/10 backdrop-blur-md shadow-lg shadow-blue-900/20 transition-all duration-300"
+              style={{
+                backgroundColor: 'hsl(var(--chat-bg))',
+                borderColor: 'hsl(var(--chat-border))',
+              }}
+            >
+              {/* Barra superior mínima tipo Uber */}
+              <header className="flex-shrink-0 flex items-center justify-between px-4 lg:px-6 py-3 border-b border-[hsl(var(--chat-border))]">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-[hsl(var(--chat-uber-green))] flex items-center justify-center">
+                    <Sparkles className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-white">Chat Socrático</h2>
+                    <p className="text-xs text-neutral-400">Aprende con preguntas guiadas</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="socratic-mode" className="text-sm">Modo Socrático</Label>
+                  <Label htmlFor="socratic-mode" className="text-xs text-neutral-400">Modo Socrático</Label>
                   <Switch
                     id="socratic-mode"
                     checked={socraticMode}
                     onCheckedChange={setSocraticMode}
+                    className="data-[state=checked]:bg-[hsl(var(--chat-uber-green))]"
                   />
                 </div>
-              </div>
+              </header>
 
-              <Card className="h-[calc(100vh-16rem)] flex flex-col">
-                <ScrollArea className="flex-1 p-6">
-                  <div className="space-y-4">
-                    {messages.length === 0 && (
-                      <div className="text-center py-12 text-muted-foreground">
-                        <div className="text-4xl mb-4">💬</div>
-                        <div className="text-lg mb-2">Comienza una conversación</div>
-                        <div className="text-sm">Escribe tu pregunta en el campo de abajo</div>
+              {/* Área de mensajes — scroll central tipo ChatGPT */}
+              <ScrollArea className="flex-1 min-h-0">
+                <div className="max-w-3xl mx-auto px-4 py-6 lg:px-6 space-y-6">
+                  {messages.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-16 lg:py-24 text-center">
+                      <div className="w-14 h-14 rounded-2xl bg-[hsl(var(--chat-surface))] border border-[hsl(var(--chat-border))] flex items-center justify-center mb-5">
+                        <MessageSquare className="h-7 w-7 text-neutral-500" />
                       </div>
-                    )}
-                    {messages.map((msg, idx) => (
-                      <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary'} rounded-lg p-4`}>
-                          <div className="flex items-start gap-2 mb-2">
-                            {msg.role === 'ai' && <Brain className="h-5 w-5 mt-0.5" />}
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                          </div>
-                          {msg.sources && msg.sources.length > 0 && (
-                            <Accordion type="single" collapsible className="mt-3">
-                              <AccordionItem value="sources" className="border-0">
-                                <AccordionTrigger className="text-xs py-2">
-                                  📚 Fuentes / Referencias ({msg.sources.length})
-                                </AccordionTrigger>
-                                <AccordionContent>
-                                  <ul className="text-xs space-y-1">
-                                    {msg.sources.map((source, i) => (
-                                      <li key={i} className="flex items-center gap-2">
-                                        <Target className="h-3 w-3" />
-                                        {source}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </AccordionContent>
-                              </AccordionItem>
-                            </Accordion>
-                          )}
-                          {msg.adversary_info?.active && (
-                            <div className="mt-2 text-xs text-muted-foreground">
-                              🔍 Modo Socrático Activo
-                            </div>
-                          )}
+                      <h3 className="text-lg font-medium text-white mb-1">¿En qué puedo ayudarte?</h3>
+                      <p className="text-sm text-neutral-400 mb-8 max-w-sm">
+                        Escribe una pregunta o elige una sugerencia para empezar.
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {suggestionChips.map((label, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setChatInput(label)}
+                            className="px-4 py-2.5 rounded-full text-sm text-neutral-300 bg-[hsl(var(--chat-surface))] border border-[hsl(var(--chat-border))] hover:bg-[hsl(var(--chat-input-bg))] hover:border-neutral-500 hover:text-white transition-all duration-300 hover:shadow-md"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {messages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} transition-opacity duration-300`}
+                    >
+                      {msg.role === 'ai' && (
+                        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[hsl(var(--chat-uber-green))] flex items-center justify-center shadow-lg ring-2 ring-white/10">
+                          <Brain className="h-4 w-4 text-white" />
+                        </div>
+                      )}
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-4 py-3 transition-all duration-300 ${
+                          msg.role === 'user'
+                            ? 'bg-[hsl(var(--chat-uber-green))] text-white rounded-br-md shadow-lg shadow-black/20'
+                            : 'bg-slate-800/80 text-slate-100 border border-white/10 rounded-bl-md backdrop-blur-sm'
+                        }`}
+                      >
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                        {msg.sources && msg.sources.length > 0 && (
+                          <Accordion type="single" collapsible className="mt-3">
+                            <AccordionItem value="sources" className="border-0">
+                              <AccordionTrigger className="text-xs py-2 text-neutral-400 hover:text-neutral-300 [&[data-state=open]]:text-neutral-300">
+                                📚 Fuentes ({msg.sources.length})
+                              </AccordionTrigger>
+                              <AccordionContent>
+                                <ul className="text-xs space-y-1 text-neutral-400">
+                                  {msg.sources.map((source, i) => (
+                                    <li key={i} className="flex items-center gap-2">
+                                      <Target className="h-3 w-3 flex-shrink-0" />
+                                      {source}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
+                        )}
+                        {msg.adversary_info?.active && (
+                          <div className="mt-2 text-xs text-neutral-500">🔍 Modo Socrático</div>
+                        )}
+                      </div>
+                      {msg.role === 'user' && <div className="w-8 flex-shrink-0" />}
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div className="flex gap-3 justify-start">
+                      <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[hsl(var(--chat-uber-green))] flex items-center justify-center shadow-lg ring-2 ring-white/10 animate-pulse">
+                        <Brain className="h-4 w-4 text-white" />
+                      </div>
+                      <div className="rounded-2xl rounded-bl-md px-4 py-3 bg-slate-800/80 border border-white/10 backdrop-blur-sm">
+                        <div className="flex items-center gap-2 text-sm text-neutral-400">
+                          <span className="inline-flex gap-1">
+                            <span className="w-2 h-2 rounded-full bg-neutral-500 animate-bounce [animation-delay:0ms]" />
+                            <span className="w-2 h-2 rounded-full bg-neutral-500 animate-bounce [animation-delay:150ms]" />
+                            <span className="w-2 h-2 rounded-full bg-neutral-500 animate-bounce [animation-delay:300ms]" />
+                          </span>
+                          Pensando...
                         </div>
                       </div>
-                    ))}
-                    {chatLoading && (
-                      <div className="flex justify-start">
-                        <div className="bg-secondary rounded-lg p-4">
-                          <div className="flex items-center gap-2">
-                            <Brain className="h-5 w-5 animate-pulse" />
-                            <span className="text-sm text-muted-foreground">Pensando...</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea>
-                <div className="p-4 border-t border-border">
-                  <div className="flex gap-2">
-                    <Input
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+
+              {/* Input fijo abajo tipo ChatGPT/Uber */}
+              <div className="flex-shrink-0 p-4 border-t border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))]">
+                <div className="max-w-3xl mx-auto">
+                  <div
+                    className="flex items-end gap-2 rounded-2xl border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-input-bg))] p-2 focus-within:border-[hsl(var(--chat-uber-green))] focus-within:ring-1 focus-within:ring-[hsl(var(--chat-uber-green))]/30 transition-all duration-300"
+                  >
+                    <Textarea
                       placeholder="Escribe tu pregunta..."
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
@@ -518,10 +585,13 @@ export default function Page() {
                           setChatInput('')
                         }
                       }}
-                      className="flex-1"
                       disabled={chatLoading}
+                      rows={1}
+                      className="min-h-[44px] max-h-32 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-neutral-500 text-white"
                     />
-                    <Button 
+                    <Button
+                      size="icon"
+                      className="flex-shrink-0 w-10 h-10 rounded-xl bg-[hsl(var(--chat-uber-green))] hover:opacity-90 text-white"
                       onClick={() => {
                         if (chatInput.trim()) {
                           sendMessage(chatInput, socraticMode)
@@ -530,17 +600,22 @@ export default function Page() {
                       }}
                       disabled={chatLoading || !chatInput.trim()}
                     >
-                      Enviar
-                    </Button>
-                    <Button variant="outline" onClick={clearMessages} disabled={chatLoading}>
-                      Limpiar
+                      <Send className="h-4 w-4" />
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Soporta LaTeX ($$x^2$$) y bloques de código
-                  </p>
+                  <div className="flex items-center justify-between mt-2 px-1">
+                    <p className="text-xs text-neutral-500">LaTeX y código soportados. Enter para enviar.</p>
+                    <button
+                      type="button"
+                      onClick={() => clearMessages()}
+                      disabled={chatLoading}
+                      className="text-xs text-neutral-500 hover:text-neutral-400 disabled:opacity-50"
+                    >
+                      Limpiar chat
+                    </button>
+                  </div>
                 </div>
-              </Card>
+              </div>
             </div>
           )}
 
@@ -548,19 +623,19 @@ export default function Page() {
           {currentView === 'biotracker' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-3xl font-bold text-balance">Bio-Tracker</h2>
-                <p className="text-muted-foreground mt-1">Registra tus datos subjetivos diarios</p>
+                <h2 className="text-3xl font-bold text-balance text-foreground">Bio-Tracker</h2>
+                <p className="text-slate-400 mt-1 leading-relaxed">Registra tus datos subjetivos diarios</p>
               </div>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Datos Biométricos Subjetivos</CardTitle>
-                  <CardDescription>Ajusta los valores según tu estado actual</CardDescription>
+                  <CardTitle className="font-semibold">Datos Biométricos Subjetivos</CardTitle>
+                  <CardDescription className="text-slate-400 leading-relaxed">Ajusta los valores según tu estado actual</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="energia" className="text-sm font-medium mb-2 block">
+                      <Label htmlFor="energia" className="text-sm font-medium text-foreground mb-2 block">
                         Nivel de Energía: {bioData.energia}/10
                       </Label>
                       <Slider
@@ -687,8 +762,8 @@ export default function Page() {
           {currentView === 'analytics' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-3xl font-bold text-balance">Analíticas</h2>
-                <p className="text-muted-foreground mt-1">Correlaciones y patrones de rendimiento</p>
+                <h2 className="text-3xl font-bold text-balance text-foreground">Analíticas</h2>
+                <p className="text-slate-400 mt-1 leading-relaxed">Correlaciones y patrones de rendimiento</p>
               </div>
 
               <Card>

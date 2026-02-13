@@ -3,12 +3,37 @@
 @tailwind utilities;
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* ========== Premium Health & Knowledge — Rich Dark Theme ========== */
+/* Fondo principal: Rich Dark Blue / Midnight Slate con gradientes radiales sutiles */
+.app-bg {
+  background-color: hsl(222 47% 6%);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, hsl(222 47% 18% / 0.4), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, hsl(217 33% 12% / 0.25), transparent),
+    radial-gradient(ellipse 50% 30% at 0% 100%, hsl(222 47% 10% / 0.2), transparent);
+}
+
+/* Chat: mantiene acento verde sobre fondo coherente con el tema */
+.chat-uber {
+  --chat-bg: 222 47% 8%;
+  --chat-surface: 222 47% 12%;
+  --chat-border: 215 25% 18%;
+  --chat-uber-green: 142 76% 36%;
+  --chat-input-bg: 222 47% 10%;
+  --chat-bubble-user: 142 76% 36%;
+  --chat-bubble-ai: 222 30% 14%;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  /* Sombra premium para cards y anillo ICD */
+  .shadow-glow {
+    box-shadow: 0 0 40px -12px hsl(217 91% 60% / 0.15), 0 25px 50px -12px rgb(0 0 0 / 0.35);
   }
 }
 
@@ -51,41 +76,42 @@ body {
     --sidebar-border: 214 32% 91%;
     --sidebar-ring: 142 76% 36%;
   }
+  /* Dark: Rich Dark Blue / Midnight Slate — Premium Health & Knowledge */
   .dark {
-    --background: 222 47% 11%;
+    --background: 222 47% 6%;
     --foreground: 210 40% 98%;
-    --card: 217 33% 17%;
+    --card: 222 35% 11%;
     --card-foreground: 210 40% 98%;
-    --popover: 217 33% 17%;
+    --popover: 222 35% 11%;
     --popover-foreground: 210 40% 98%;
     --primary: 210 40% 98%;
     --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
+    --secondary: 222 30% 14%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 222 25% 16%;
+    --muted-foreground: 215 20% 58%;
     --accent: 142 76% 36%;
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 63% 31%;
+    --destructive: 0 63% 45%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 212 35% 82%;
+    --border: 215 25% 18%;
+    --input: 215 25% 18%;
+    --ring: 217 91% 60%;
     --flow: 142 76% 36%;
     --deep-work: 217 91% 60%;
     --survival: 0 84% 60%;
     --chart-1: 142 76% 36%;
     --chart-2: 217 91% 60%;
     --chart-3: 0 84% 60%;
-    --chart-4: 215 20% 65%;
+    --chart-4: 215 20% 58%;
     --chart-5: 210 40% 98%;
-    --sidebar-background: 217 33% 17%;
+    --sidebar-background: 222 40% 8%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 210 40% 98%;
     --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 217 33% 22%;
+    --sidebar-accent: 222 30% 14%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 22%;
+    --sidebar-border: 215 25% 16%;
     --sidebar-ring: 142 76% 36%;
   }
 }
@@ -95,6 +121,6 @@ body {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
 }
