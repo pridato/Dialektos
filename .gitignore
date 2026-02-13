@@ -43,9 +43,7 @@ venv.bak/
 *~
 .DS_Store
 
-# Jupyter Notebooks
-.ipynb_checkpoints
-*.ipynb
+
 
 # ChromaDB (Base de datos vectorial - puede ser pesada)
 chroma_db/
