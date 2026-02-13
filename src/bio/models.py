@@ -93,8 +93,6 @@ class DailyBiometrics(SQLModel, table=True):
     # --- Objetivo (Suunto / Wearable) ---
     hrv_rmssd: Optional[float] = Field(
         default=None, description="HRV nocturna RMSSD (ms) — actividad parasimpática")
-    hrv_sdnn: Optional[float] = Field(
-        default=None, description="HRV SDNN (ms) — variabilidad total del intervalo RR")
     resting_hr: Optional[int] = Field(
         default=None, description="Frecuencia cardíaca en reposo (bpm)")
     avg_hr_sleep: Optional[float] = Field(
@@ -109,12 +107,12 @@ class DailyBiometrics(SQLModel, table=True):
         default=None, description="Minutos de sueño ligero")
     awake_min: Optional[int] = Field(
         default=None, description="Minutos despierto durante la noche")
+    sleep_start_time: Optional[str] = Field(
+        default=None, description="Hora de inicio del sueño (formato HH:MM)")
     sleep_quality: Optional[int] = Field(
         default=None, ge=0, le=100, description="Score calidad sueño Suunto (0-100)")
     body_resources: Optional[int] = Field(
         default=None, ge=0, le=100, description="Recursos corporales Suunto 0-100 — feature clave")
-    stress_avg: Optional[float] = Field(
-        default=None, description="Nivel medio estrés diurno")
     training_load: Optional[float] = Field(
         default=None, description="Carga de entrenamiento acumulada")
 

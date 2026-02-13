@@ -76,7 +76,6 @@
   - *Detalle:* Una fila por día. Combina datos objetivos de Suunto con autoevaluación subjetiva.
   - *Esquema — Objetivo (Suunto):*
     - `hrv_rmssd` (FLOAT, ms): HRV nocturna, actividad parasimpática (recuperación).
-    - `hrv_sdnn` (FLOAT, ms): Variabilidad total del intervalo RR (adaptabilidad general).
     - `resting_hr` (INT, bpm): Frecuencia cardíaca en reposo.
     - `avg_hr_sleep` (FLOAT, bpm): FC promedio durante el sueño.
     - `sleep_total_min` (INT): Tiempo total de sueño.
@@ -86,8 +85,7 @@
     - `awake_min` (INT): Minutos despierto durante la noche.
     - `sleep_quality` (INT, 0-100): Score de calidad de sueño de Suunto.
     - `body_resources` (INT, 0-100): Métrica propietaria de Suunto — índice integrado de recuperación (combina HRV + sueño + estrés). **Feature clave.**
-    - `stress_avg` (FLOAT): Nivel medio de estrés diurno (activación simpática sostenida).
-    - `training_load` (FLOAT): Carga de entrenamiento acumulada.
+    - `training_load` (FLOAT): Carga de entrenamiento acumulada. -> TSB
   - *Esquema — Subjetivo (User):*
     - `energy_level` (INT, 1-10): Sensación de "pilas" (energía física).
     - `mental_clarity` (INT, 1-10): Claridad mental (niebla vs. agudeza). **Separado de energy — son ortogonales.**
@@ -138,7 +136,7 @@
 
 ### 3.2 Ingesta de Datos Suunto
 
-- [ ] **3.2.1 Parser de Exportación Suunto (JSON/FIT)**
+- [X] **3.2.1 Parser de Exportación Suunto (JSON/FIT)**
   - **Dificultad:** MEDIUM
   - *Detalle:* Crear script `src/bio/suunto_parser.py` que lea los archivos JSON exportados desde la Suunto App y extraiga los campos del esquema `DailyBiometrics` (objetivo).
   - *Estrategia:* Empezar con ingesta manual (exportar JSON → parsear → insertar). Automatizar con Suunto API (OAuth2) cuando haya 30+ días de datos y se confirme qué campos son realmente útiles.
