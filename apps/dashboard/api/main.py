@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
 from typing import Any, Dict, List, Optional
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import sys
 from pathlib import Path
@@ -104,6 +104,23 @@ class ChatResponse(BaseModel):
     answer: str
     sources: Optional[List[Dict[str, Any]]] = None
     adversary_info: Optional[Dict[str, Any]] = None
+
+
+class StudySessionCreate(BaseModel):
+    """Payload del HUD al finalizar sesión (guardar en SQLite)."""
+    start_time: str
+    end_time: str
+    duration_minutes: int
+    subject: str
+    task_type: str  # deep_work, active_recall, superficial
+    goal_description: str
+    distraction_count: int = 0
+    perceived_focus_score: int  # 1-10
+    perceived_difficulty: int  # 1-5
+    date_ref: str  # YYYY-MM-DD
+    pre_session_energy: Optional[int] = None
+    zone: Optional[str] = None
+    comments: Optional[str] = None
 
 
 # ============================================================================
@@ -246,6 +263,73 @@ async def get_study_streak():
         return {
             "days": [d.isoformat() for d in days_with_sessions],
         }
+
+
+def _map_task_category_to_type(category: str) -> str:
+    """Mapea task_category del HUD al TaskTypeEnum existente."""
+    m = {"deep_work": "theory_new",
+         "active_recall": "coding", "superficial": "review"}
+    return m.get(category, "theory_new")
+
+
+def _map_difficulty_1_5_to_attempted(d: int) -> str:
+    """Mapea dificultad 1-5 a EASY/MEDIUM/HARD/EPIC."""
+    if d <= 2:
+        return "EASY"
+    if d == 3:
+        return "MEDIUM"
+    if d == 4:
+        return "HARD"
+    return "EPIC"
+
+
+@app.post("/api/sessions")
+async def save_study_session(data: StudySessionCreate):
+    """Guarda una sesión de estudio desde el HUD en SQLite (metrics.db)."""
+    engine = get_engine()
+    date_ref = date.fromisoformat(data.date_ref)
+
+    with Session(engine) as db_session:
+        try:
+            # Asegurar que exista fila en daily_biometrics para la FK
+            create_or_update_biometrics(db_session, {"date": date_ref})
+
+            start_dt = datetime.fromisoformat(
+                data.start_time.replace("Z", "+00:00")
+            ).replace(tzinfo=None)
+            end_dt = datetime.fromisoformat(
+                data.end_time.replace("Z", "+00:00")
+            ).replace(tzinfo=None)
+
+            record = StudySession(
+                date=date_ref,
+                start_time=start_dt,
+                end_time=end_dt,
+                duration_min=data.duration_minutes,
+                task_type=_map_task_category_to_type(data.task_type),
+                task_category=data.task_type,
+                difficulty_attempted=_map_difficulty_1_5_to_attempted(
+                    data.perceived_difficulty
+                ),
+                focus_score=data.perceived_focus_score,
+                perceived_difficulty=data.perceived_difficulty,
+                interruptions=data.distraction_count,
+                subject=data.subject,
+                goal_description=data.goal_description,
+                comments=data.comments,
+                pre_session_energy=data.pre_session_energy,
+                zone=data.zone,
+            )
+            db_session.add(record)
+            db_session.commit()
+            db_session.refresh(record)
+            return {
+                "success": True,
+                "session_id": record.session_id,
+            }
+        except Exception as e:
+            db_session.rollback()
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/biometrics")

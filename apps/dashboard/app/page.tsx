@@ -300,9 +300,26 @@ export default function Page() {
               userId="local"
               preSessionEnergy={biometrics.battery}
               zone={zoneLabel}
-              onSessionComplete={(record: StudySessionRecord) => {
-                console.log('Sesión guardada:', record)
-                // TODO: api.saveStudySession(record) cuando exista el endpoint
+              onSessionComplete={async (record: StudySessionRecord) => {
+                try {
+                  await api.saveStudySession({
+                    start_time: record.start_time,
+                    end_time: record.end_time,
+                    duration_minutes: record.duration_minutes,
+                    subject: record.subject,
+                    task_type: record.task_type,
+                    goal_description: record.goal_description,
+                    distraction_count: record.distraction_count,
+                    perceived_focus_score: record.perceived_focus_score,
+                    perceived_difficulty: record.perceived_difficulty,
+                    date_ref: record.date_ref,
+                    pre_session_energy: record.pre_session_energy,
+                    zone: record.zone,
+                    comments: record.comments,
+                  })
+                } catch (e) {
+                  console.error('Error guardando sesión:', e)
+                }
               }}
             />
           )}

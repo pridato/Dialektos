@@ -244,6 +244,40 @@ class StudySession(SQLModel, table=True):
         description="Snapshot del ICD al momento de empezar (para correlación directa)"
     )
 
+    # --- Campos del HUD / Active Session (Data Science) ---
+    subject: Optional[str] = Field(
+        default=None,
+        description="Asignatura: Cálculo, IA, Programación, Física"
+    )
+    goal_description: Optional[str] = Field(
+        default=None,
+        description="Objetivo micro de la sesión (ej: Entender Backpropagation)"
+    )
+    task_category: Optional[str] = Field(
+        default=None,
+        description="Categoría HUD: deep_work, active_recall, superficial"
+    )
+    perceived_difficulty: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=5,
+        description="Dificultad percibida 1-5 (debrief)"
+    )
+    comments: Optional[str] = Field(
+        default=None,
+        description="Comentarios opcionales al finalizar (debrief)"
+    )
+    pre_session_energy: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description="Batería corporal / energía al inicio (snapshot)"
+    )
+    zone: Optional[str] = Field(
+        default=None,
+        description="Zona calculada al inicio (ej: Flow)"
+    )
+
     @field_validator("task_type", mode="before")
     @classmethod
     def validate_task_type(cls, v: Optional[str]) -> Optional[str]:
