@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Menu, Home, MessageSquare, Activity, BarChart3, User, Settings, TrendingUp, TrendingDown, Brain, Battery, Moon, Heart, Zap, Target, Send, Sparkles } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -101,8 +102,8 @@ export default function Page() {
   const navItemClass = (view: View) =>
     `justify-start transition-all duration-300 rounded-xl pl-3 ${
       currentView === view
-        ? 'bg-primary/10 text-foreground font-semibold border-l-4 border-l-accent border border-white/10'
-        : 'text-slate-400 hover:text-foreground hover:bg-white/5'
+        ? 'bg-primary/10 text-foreground font-semibold border-l-4 border-l-accent border border-border dark:border-white/10'
+        : 'text-muted-foreground dark:text-slate-400 hover:text-foreground hover:bg-muted/50 dark:hover:bg-white/5'
     }`
 
   const NavLinks = ({ mobile = false }: { mobile?: boolean }) => (
@@ -157,12 +158,12 @@ export default function Page() {
   return (
     <div className="flex h-screen overflow-hidden bg-background app-bg">
       {/* Desktop Sidebar — Glassmorphism + indicador activo */}
-      <aside className="hidden lg:flex w-64 flex-col border-r border-white/10 bg-slate-900/50 backdrop-blur-md shadow-lg shadow-blue-900/10">
-        <div className="p-6 border-b border-white/10">
+      <aside className="hidden lg:flex w-64 flex-col border-r border-border dark:border-white/10 bg-card/80 dark:bg-slate-900/50 backdrop-blur-md shadow-lg dark:shadow-blue-900/10">
+        <div className="p-6 border-b border-border dark:border-white/10">
           <h1 className="text-2xl font-bold text-foreground">Dialektos</h1>
-          <p className="text-sm text-slate-400 mt-1 leading-relaxed">Sistema RAG Adaptativo</p>
+          <p className="text-sm text-muted-foreground dark:text-slate-400 mt-1 leading-relaxed">Sistema RAG Adaptativo</p>
         </div>
-        <div className="p-4 border-b border-white/10">
+        <div className="p-4 border-b border-border dark:border-white/10">
           {icdLoading ? (
             <div className="text-sm text-muted-foreground">Cargando ICD...</div>
           ) : icdScore !== null ? (
@@ -191,7 +192,11 @@ export default function Page() {
         <div className="flex-1 p-4">
           <NavLinks />
         </div>
-        <div className="p-4 border-t border-white/10 space-y-2">
+        <div className="p-4 border-t border-border dark:border-white/10 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">Tema</span>
+            <ThemeToggle />
+          </div>
           <Button variant="ghost" className="w-full justify-start">
             <User className="mr-2 h-4 w-4" />
             Perfil
@@ -204,14 +209,16 @@ export default function Page() {
       </aside>
 
       {/* Mobile Header — Glassmorphism */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-slate-900/50 backdrop-blur-md border-b border-white/10 p-4 flex items-center justify-between shadow-lg shadow-blue-900/10">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-background/80 dark:bg-slate-900/50 backdrop-blur-md border-b border-border dark:border-white/10 p-4 flex items-center justify-between shadow-lg shadow-blue-900/10">
         <h1 className="text-xl font-bold">Dialektos</h1>
-        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Menu className="h-6 w-6" />
-            </Button>
-          </SheetTrigger>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="h-6 w-6" />
+              </Button>
+            </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">
             <VisuallyHiddenPrimitive.Root asChild>
               <SheetTitle>Menú de navegación</SheetTitle>
@@ -224,6 +231,10 @@ export default function Page() {
               <NavLinks mobile />
             </div>
             <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground">Tema</span>
+                <ThemeToggle />
+              </div>
               <Button variant="ghost" className="w-full justify-start">
                 <User className="mr-2 h-4 w-4" />
                 Perfil
@@ -234,7 +245,8 @@ export default function Page() {
               </Button>
             </div>
           </SheetContent>
-        </Sheet>
+          </Sheet>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -450,7 +462,7 @@ export default function Page() {
           {/* Chat View — estilo ChatGPT + UI Uber */}
           {currentView === 'chat' && (
             <div
-              className="chat-uber flex flex-col flex-1 min-h-0 rounded-2xl overflow-hidden border border-white/10 backdrop-blur-md shadow-lg shadow-blue-900/20 transition-all duration-300"
+              className="chat-uber flex flex-col flex-1 min-h-0 rounded-2xl overflow-hidden border border-border dark:border-white/10 backdrop-blur-md shadow-lg dark:shadow-blue-900/20 transition-all duration-300"
               style={{
                 backgroundColor: 'hsl(var(--chat-bg))',
                 borderColor: 'hsl(var(--chat-border))',
@@ -463,12 +475,12 @@ export default function Page() {
                     <Sparkles className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-base font-semibold text-white">Chat Socrático</h2>
-                    <p className="text-xs text-neutral-400">Aprende con preguntas guiadas</p>
+                    <h2 className="text-base font-semibold text-foreground">Chat Socrático</h2>
+                    <p className="text-xs text-muted-foreground">Aprende con preguntas guiadas</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="socratic-mode" className="text-xs text-neutral-400">Modo Socrático</Label>
+                  <Label htmlFor="socratic-mode" className="text-xs text-muted-foreground">Modo Socrático</Label>
                   <Switch
                     id="socratic-mode"
                     checked={socraticMode}
@@ -484,10 +496,10 @@ export default function Page() {
                   {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-16 lg:py-24 text-center">
                       <div className="w-14 h-14 rounded-2xl bg-[hsl(var(--chat-surface))] border border-[hsl(var(--chat-border))] flex items-center justify-center mb-5">
-                        <MessageSquare className="h-7 w-7 text-neutral-500" />
+                        <MessageSquare className="h-7 w-7 text-muted-foreground" />
                       </div>
-                      <h3 className="text-lg font-medium text-white mb-1">¿En qué puedo ayudarte?</h3>
-                      <p className="text-sm text-neutral-400 mb-8 max-w-sm">
+                      <h3 className="text-lg font-medium text-foreground mb-1">¿En qué puedo ayudarte?</h3>
+                      <p className="text-sm text-muted-foreground mb-8 max-w-sm">
                         Escribe una pregunta o elige una sugerencia para empezar.
                       </p>
                       <div className="flex flex-wrap justify-center gap-2">
@@ -496,7 +508,7 @@ export default function Page() {
                             key={i}
                             type="button"
                             onClick={() => setChatInput(label)}
-                            className="px-4 py-2.5 rounded-full text-sm text-neutral-300 bg-[hsl(var(--chat-surface))] border border-[hsl(var(--chat-border))] hover:bg-[hsl(var(--chat-input-bg))] hover:border-neutral-500 hover:text-white transition-all duration-300 hover:shadow-md"
+                            className="px-4 py-2.5 rounded-full text-sm text-muted-foreground bg-[hsl(var(--chat-surface))] border border-[hsl(var(--chat-border))] hover:bg-[hsl(var(--chat-input-bg))] hover:border-border hover:text-foreground transition-all duration-300 hover:shadow-md"
                           >
                             {label}
                           </button>
@@ -510,7 +522,7 @@ export default function Page() {
                       className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} transition-opacity duration-300`}
                     >
                       {msg.role === 'ai' && (
-                        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[hsl(var(--chat-uber-green))] flex items-center justify-center shadow-lg ring-2 ring-white/10">
+                        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[hsl(var(--chat-uber-green))] flex items-center justify-center shadow-lg ring-2 ring-border dark:ring-white/10">
                           <Brain className="h-4 w-4 text-white" />
                         </div>
                       )}
@@ -518,18 +530,18 @@ export default function Page() {
                         className={`max-w-[85%] rounded-2xl px-4 py-3 transition-all duration-300 ${
                           msg.role === 'user'
                             ? 'bg-[hsl(var(--chat-uber-green))] text-white rounded-br-md shadow-lg shadow-black/20'
-                            : 'bg-slate-800/80 text-slate-100 border border-white/10 rounded-bl-md backdrop-blur-sm'
+                            : 'bg-[hsl(var(--chat-bubble-ai))] text-foreground border border-[hsl(var(--chat-border))] rounded-bl-md backdrop-blur-sm'
                         }`}
                       >
                         <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                         {msg.sources && msg.sources.length > 0 && (
                           <Accordion type="single" collapsible className="mt-3">
                             <AccordionItem value="sources" className="border-0">
-                              <AccordionTrigger className="text-xs py-2 text-neutral-400 hover:text-neutral-300 [&[data-state=open]]:text-neutral-300">
+                              <AccordionTrigger className="text-xs py-2 text-muted-foreground hover:text-foreground [&[data-state=open]]:text-foreground">
                                 📚 Fuentes ({msg.sources.length})
                               </AccordionTrigger>
                               <AccordionContent>
-                                <ul className="text-xs space-y-1 text-neutral-400">
+                                <ul className="text-xs space-y-1 text-muted-foreground">
                                   {msg.sources.map((source, i) => (
                                     <li key={i} className="flex items-center gap-2">
                                       <Target className="h-3 w-3 flex-shrink-0" />
@@ -542,7 +554,7 @@ export default function Page() {
                           </Accordion>
                         )}
                         {msg.adversary_info?.active && (
-                          <div className="mt-2 text-xs text-neutral-500">🔍 Modo Socrático</div>
+                          <div className="mt-2 text-xs text-muted-foreground">🔍 Modo Socrático</div>
                         )}
                       </div>
                       {msg.role === 'user' && <div className="w-8 flex-shrink-0" />}
@@ -550,15 +562,15 @@ export default function Page() {
                   ))}
                   {chatLoading && (
                     <div className="flex gap-3 justify-start">
-                      <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[hsl(var(--chat-uber-green))] flex items-center justify-center shadow-lg ring-2 ring-white/10 animate-pulse">
+                      <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[hsl(var(--chat-uber-green))] flex items-center justify-center shadow-lg ring-2 ring-border dark:ring-white/10 animate-pulse">
                         <Brain className="h-4 w-4 text-white" />
                       </div>
-                      <div className="rounded-2xl rounded-bl-md px-4 py-3 bg-slate-800/80 border border-white/10 backdrop-blur-sm">
-                        <div className="flex items-center gap-2 text-sm text-neutral-400">
+                      <div className="rounded-2xl rounded-bl-md px-4 py-3 bg-[hsl(var(--chat-bubble-ai))] border border-[hsl(var(--chat-border))] backdrop-blur-sm">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <span className="inline-flex gap-1">
-                            <span className="w-2 h-2 rounded-full bg-neutral-500 animate-bounce [animation-delay:0ms]" />
-                            <span className="w-2 h-2 rounded-full bg-neutral-500 animate-bounce [animation-delay:150ms]" />
-                            <span className="w-2 h-2 rounded-full bg-neutral-500 animate-bounce [animation-delay:300ms]" />
+                            <span className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce [animation-delay:0ms]" />
+                            <span className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce [animation-delay:150ms]" />
+                            <span className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce [animation-delay:300ms]" />
                           </span>
                           Pensando...
                         </div>
@@ -587,7 +599,7 @@ export default function Page() {
                       }}
                       disabled={chatLoading}
                       rows={1}
-                      className="min-h-[44px] max-h-32 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-neutral-500 text-white"
+                      className="min-h-[44px] max-h-32 resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground text-foreground"
                     />
                     <Button
                       size="icon"
@@ -604,12 +616,12 @@ export default function Page() {
                     </Button>
                   </div>
                   <div className="flex items-center justify-between mt-2 px-1">
-                    <p className="text-xs text-neutral-500">LaTeX y código soportados. Enter para enviar.</p>
+                    <p className="text-xs text-muted-foreground">LaTeX y código soportados. Enter para enviar.</p>
                     <button
                       type="button"
                       onClick={() => clearMessages()}
                       disabled={chatLoading}
-                      className="text-xs text-neutral-500 hover:text-neutral-400 disabled:opacity-50"
+                      className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
                     >
                       Limpiar chat
                     </button>

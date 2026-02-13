@@ -7,8 +7,8 @@ body {
 }
 
 /* ========== Premium Health & Knowledge — Rich Dark Theme ========== */
-/* Fondo principal: Rich Dark Blue / Midnight Slate con gradientes radiales sutiles */
-.app-bg {
+/* Fondo principal en modo oscuro: Rich Dark Blue / Midnight Slate con gradientes radiales */
+.dark .app-bg {
   background-color: hsl(222 47% 6%);
   background-image:
     radial-gradient(ellipse 80% 50% at 50% -20%, hsl(222 47% 18% / 0.4), transparent),
@@ -16,8 +16,18 @@ body {
     radial-gradient(ellipse 50% 30% at 0% 100%, hsl(222 47% 10% / 0.2), transparent);
 }
 
-/* Chat: mantiene acento verde sobre fondo coherente con el tema */
+/* Chat: variables por tema (claro y oscuro) */
 .chat-uber {
+  /* Tema claro */
+  --chat-bg: 0 0% 98%;
+  --chat-surface: 0 0% 96%;
+  --chat-border: 214 32% 88%;
+  --chat-uber-green: 142 76% 36%;
+  --chat-input-bg: 0 0% 100%;
+  --chat-bubble-user: 142 76% 36%;
+  --chat-bubble-ai: 0 0% 94%;
+}
+.dark .chat-uber {
   --chat-bg: 222 47% 8%;
   --chat-surface: 222 47% 12%;
   --chat-border: 215 25% 18%;
