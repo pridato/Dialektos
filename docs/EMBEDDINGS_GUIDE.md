@@ -348,17 +348,17 @@ Si detectas duplicados en tu base de datos actual:
 
 ```bash
 # 1. Detectar duplicados
-python sql/detect_duplicates.py
-# Genera: sql/duplicates_report.json
+python scripts/db/detect_duplicates.py
+# Genera: scripts/db/duplicates_report.json
 
 # 2. Revisar reporte
-cat sql/duplicates_report.json
+cat scripts/db/duplicates_report.json
 
 # 3. Crear backup (IMPORTANTE)
 cp -r data/chroma_db data/chroma_db.backup
 
 # 4. Ejecutar limpieza
-python sql/cleanup_duplicates.py
+python scripts/db/cleanup_duplicates.py
 # Solicita confirmación y crea backup automático
 ```
 

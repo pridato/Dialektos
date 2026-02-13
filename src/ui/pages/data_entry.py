@@ -33,11 +33,11 @@ from src.ui.components import COLORS, get_today_biometrics
 
 
 def render_data_entry(engine: Any) -> None:
-    """Renderiza la página de ingreso de datos fisiológicos."""
+    """Renderiza la página de ingreso de datos fisiológicos con diseño moderno."""
 
-    st.markdown("# Registro de Datos Fisiológicos")
+    st.markdown("# Bio-Tracker")
     st.caption(
-        "Ingresa tus métricas de Suunto y autoevaluación subjetiva. "
+        "Registra tus datos subjetivos diarios. Ajusta los valores según tu estado actual. "
         "El ICD se calcula automáticamente al guardar."
     )
 
@@ -174,61 +174,71 @@ def render_data_entry(engine: Any) -> None:
 
         st.divider()
 
-        # ── Sección 2: Datos Subjetivos ──
+        # ── Sección 2: Datos Subjetivos mejorados ──
         st.subheader("Autoevaluación Subjetiva")
         st.caption("¿Cómo te sientes hoy? Estas métricas son ortogonales entre sí.")
 
-        sub_col1, sub_col2 = st.columns(2)
-
-        with sub_col1:
-            energy_level = st.slider(
-                "Energía Física",
-                min_value=1,
-                max_value=10,
-                value=existing_bio.energy_level if existing_bio and existing_bio.energy_level else 5,
-                help="1 = Agotado, 10 = Lleno de energía.",
-            )
-            mental_clarity = st.slider(
-                "Claridad Mental",
-                min_value=1,
-                max_value=10,
-                value=existing_bio.mental_clarity if existing_bio and existing_bio.mental_clarity else 5,
-                help="1 = Niebla mental, 10 = Agudeza máxima.",
-            )
-            muscle_soreness = st.slider(
-                "Agujetas / Fatiga Física",
-                min_value=1,
-                max_value=10,
-                value=existing_bio.muscle_soreness if existing_bio and existing_bio.muscle_soreness else 3,
-                help="1 = Sin dolor, 10 = Muy dolorido.",
-            )
-
-        with sub_col2:
-            motivation = st.slider(
-                "Motivación para Estudiar",
-                min_value=1,
-                max_value=10,
-                value=existing_bio.motivation if existing_bio and existing_bio.motivation else 5,
-                help="1 = Sin ganas, 10 = Muy motivado.",
-            )
-            mood_options = [m.value for m in MoodEnum]
-            current_mood_idx = 3  # neutral
-            if existing_bio and existing_bio.mood:
-                try:
-                    current_mood_idx = mood_options.index(existing_bio.mood)
-                except ValueError:
-                    current_mood_idx = 3
-            mood = st.selectbox(
-                "Estado de Ánimo",
-                options=mood_options,
-                index=current_mood_idx,
-                format_func=lambda x: {
-                    "focused": "Enfocado (Focused)",
-                    "anxious": "Ansioso (Anxious)",
-                    "tired": "Cansado (Tired)",
-                    "neutral": "Neutral",
-                }.get(x, x),
-            )
+        # Sliders mejorados con diseño visual
+        st.markdown("#### Nivel de Energía")
+        energy_level = st.slider(
+            f"Energía Física: {existing_bio.energy_level if existing_bio and existing_bio.energy_level else 5}/10",
+            min_value=1,
+            max_value=10,
+            value=existing_bio.energy_level if existing_bio and existing_bio.energy_level else 5,
+            help="1 = Agotado, 10 = Lleno de energía.",
+            key="energy_slider",
+        )
+        
+        st.markdown("#### Claridad Mental")
+        mental_clarity = st.slider(
+            f"Claridad Mental: {existing_bio.mental_clarity if existing_bio and existing_bio.mental_clarity else 5}/10",
+            min_value=1,
+            max_value=10,
+            value=existing_bio.mental_clarity if existing_bio and existing_bio.mental_clarity else 5,
+            help="1 = Niebla mental, 10 = Agudeza máxima.",
+            key="clarity_slider",
+        )
+        
+        st.markdown("#### Motivación")
+        motivation = st.slider(
+            f"Motivación para Estudiar: {existing_bio.motivation if existing_bio and existing_bio.motivation else 5}/10",
+            min_value=1,
+            max_value=10,
+            value=existing_bio.motivation if existing_bio and existing_bio.motivation else 5,
+            help="1 = Sin ganas, 10 = Muy motivado.",
+            key="motivation_slider",
+        )
+        
+        st.markdown("#### Fatiga Física")
+        muscle_soreness = st.slider(
+            f"Agujetas / Fatiga Física: {existing_bio.muscle_soreness if existing_bio and existing_bio.muscle_soreness else 3}/10",
+            min_value=1,
+            max_value=10,
+            value=existing_bio.muscle_soreness if existing_bio and existing_bio.muscle_soreness else 3,
+            help="1 = Sin dolor, 10 = Muy dolorido.",
+            key="soreness_slider",
+        )
+        
+        st.markdown("#### Estado de Ánimo")
+        mood_options = [m.value for m in MoodEnum]
+        current_mood_idx = 3  # neutral
+        if existing_bio and existing_bio.mood:
+            try:
+                current_mood_idx = mood_options.index(existing_bio.mood)
+            except ValueError:
+                current_mood_idx = 3
+        mood = st.selectbox(
+            "Estado de Ánimo",
+            options=mood_options,
+            index=current_mood_idx,
+            format_func=lambda x: {
+                "focused": "🎯 Enfocado (Focused)",
+                "anxious": "😰 Ansioso (Anxious)",
+                "tired": "😴 Cansado (Tired)",
+                "neutral": "😐 Neutral",
+            }.get(x, x),
+            help="Estado emocional general del día.",
+        )
 
         st.divider()
 
@@ -298,18 +308,21 @@ def render_data_entry(engine: Any) -> None:
                 value=existing_conf.exercise_min if existing_conf and existing_conf.exercise_min else 0,
             )
 
+        st.markdown("#### Notas del día")
         notes = st.text_area(
             "Notas adicionales",
             value=existing_conf.notes if existing_conf and existing_conf.notes else "",
-            placeholder="Contexto cualitativo: examen mañana, viaje, dormí en sitio nuevo...",
+            placeholder="Escribe cualquier contexto adicional sobre tu estado actual...\n\nEjemplos:\n- Examen mañana\n- Viaje\n- Dormí en sitio nuevo\n- Estrés laboral",
             max_chars=500,
+            height=120,
+            help="Contexto cualitativo que puede afectar tus métricas.",
         )
 
         st.divider()
 
-        # ── Botón de guardar ──
+        # ── Botón de guardar mejorado ──
         submitted = st.form_submit_button(
-            "Guardar Datos del Día",
+            "💾 Calcular ICD y Sincronizar Suunto",
             type="primary",
             use_container_width=True,
         )

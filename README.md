@@ -68,7 +68,12 @@ Dialektos/
 │   ├── TAREAS.md                  # Roadmap detallado del proyecto
 │   ├── EMBEDDINGS_GUIDE.md        # Guía del sistema de vectorización
 │   └── RESUMEN_TAREAS_3_3.4.md    # Resumen de tareas de bio-adaptabilidad
-├── sql/                           # Scripts de análisis SQL sobre ChromaDB
+├── apps/                          # Aplicaciones separadas
+│   └── dashboard/                # Dashboard Next.js
+├── scripts/                       # Scripts de utilidad
+│   ├── data/                     # Scripts de ingesta de datos
+│   └── db/                       # Scripts SQL y análisis de bases de datos
+├── tests/                         # Tests del proyecto
 └── logs/                          # Logs de procesamiento
 ```
 
@@ -185,7 +190,7 @@ results = db.search_with_filters(
 Coloca tu exportación JSON de Suunto en `data/biometrics/` y ejecuta:
 
 ```bash
-python scripts/ingest_suunto_json.py
+python scripts/data/ingest_suunto_json.py
 ```
 
 Esto parsea los datos de HRV, sueño y body resources, calcula las métricas derivadas (`ln_rmssd`, `hrv_baseline_7d`, `sleep_consistency`, `icd_score`) y los almacena en `data/metrics.db`.
@@ -307,7 +312,7 @@ python src/bio/test_metrics.py
 - [**Guía de Embeddings**](docs/EMBEDDINGS_GUIDE.md) — Sistema de vectorización completo
 - [**Tareas del Proyecto**](docs/TAREAS.md) — Roadmap detallado por módulos
 - [**Resumen Bio-Adaptabilidad**](docs/RESUMEN_TAREAS_3_3.4.md) — Tareas 3.3 y 3.4
-- [**SQL README**](sql/README.md) — Análisis y consultas SQL sobre ChromaDB
+- [**SQL README**](scripts/db/README.md) — Análisis y consultas SQL sobre ChromaDB
 
 ## Troubleshooting
 

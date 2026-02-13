@@ -29,6 +29,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
+.venv/
 
 # Environment Variables (CRÍTICO - API Keys)
 .env
@@ -42,8 +43,6 @@ venv.bak/
 *.swo
 *~
 .DS_Store
-
-
 
 # ChromaDB (Base de datos vectorial - puede ser pesada)
 chroma_db/
@@ -87,3 +86,14 @@ embeddings/
 tmp/
 temp/
 *.tmp
+
+# Next.js / Dashboard
+apps/dashboard/.next/
+apps/dashboard/node_modules/
+apps/dashboard/.env.local
+apps/dashboard/.env*.local
+
+# Reports generados (mantener estructura pero ignorar contenido)
+scripts/db/reports/*.json
+scripts/db/reports/*.md
+!scripts/db/reports/.gitkeep

@@ -547,3 +547,86 @@ def get_today_icd(session: Session) -> Optional[float]:
     if record and record.icd_score is not None:
         return record.icd_score
     return None
+
+
+# ============================================================================
+# 8. HEATMAP DE RACHA DE ESTUDIO
+# ============================================================================
+
+
+def render_study_streak_heatmap(
+    session: Session,
+    sessions: List[StudySession],
+    zone_color: str,
+) -> None:
+    """
+    Renderiza un heatmap tipo GitHub de los últimos 28 días mostrando días con sesiones de estudio.
+
+    Args:
+        session: Sesión de base de datos.
+        sessions: Lista de sesiones de estudio.
+        zone_color: Color de la zona actual para los días con estudio.
+    """
+    from datetime import date, timedelta
+
+    # Crear diccionario de días con sesiones
+    days_with_sessions = set()
+    for s in sessions:
+        days_with_sessions.add(s.date)
+
+    # Generar últimos 28 días
+    today = date.today()
+    last_28_days = [today - timedelta(days=i) for i in range(27, -1, -1)]
+
+    # Crear grid de 7x4 (semanas x días)
+    weeks = []
+    current_week = []
+    for day in last_28_days:
+        current_week.append(day)
+        if len(current_week) == 7:
+            weeks.append(current_week)
+            current_week = []
+    if current_week:
+        weeks.append(current_week)
+
+    # Renderizar heatmap
+    html = f"""
+    <div style="
+        background: {COLORS['bg_card']};
+        border: 1px solid {COLORS['border']};
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 8px;
+    ">
+        <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; max-width: 600px;">
+    """
+
+    for week in weeks:
+        for day in week:
+            has_study = day in days_with_sessions
+            opacity = "1.0" if has_study else "0.3"
+            bg_color = zone_color if has_study else COLORS["border"]
+            html += f"""
+            <div
+                style="
+                    aspect-ratio: 1;
+                    background-color: {bg_color};
+                    opacity: {opacity};
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: opacity 0.2s;
+                "
+                title="{day.strftime('%Y-%m-%d')}"
+            ></div>
+            """
+
+    html += f"""
+        </div>
+        <div style="margin-top: 12px; font-size: 0.85em; color: {COLORS['text_muted']};">
+            <span style="display: inline-block; width: 12px; height: 12px; background: {zone_color}; border-radius: 2px; margin-right: 4px;"></span>
+            Días con sesiones de estudio
+        </div>
+    </div>
+    """
+
+    st.markdown(html, unsafe_allow_html=True)

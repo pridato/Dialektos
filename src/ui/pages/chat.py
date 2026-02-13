@@ -99,39 +99,47 @@ def _get_retriever():
 
 
 def render_chat(engine: Any) -> None:
-    """Renderiza la página de Chat Adaptativo."""
+    """Renderiza la página de Chat Adaptativo con diseño moderno."""
 
     _init_chat_state()
 
-    st.markdown("# Chat Adaptativo")
-
+    # ── Header mejorado ──
+    header_col1, header_col2 = st.columns([3, 1])
+    with header_col1:
+        st.markdown("# Chat Socrático")
+        st.caption("Aprende mediante preguntas guiadas")
+    
     # ── Badge de modo actual ──
     with Session(engine) as session:
         today_icd = get_today_icd(session)
 
     strategy = get_strategy_for_record(today_icd) if today_icd is not None else None
-    st.markdown(_get_mode_badge_html(strategy), unsafe_allow_html=True)
+    
+    with header_col2:
+        st.markdown("<br>", unsafe_allow_html=True)  # Espaciado
+        st.markdown(_get_mode_badge_html(strategy), unsafe_allow_html=True)
 
     if strategy:
-        st.caption(strategy.description)
+        st.info(f"💡 {strategy.description}")
     else:
-        st.caption(
-            "Registra tus datos fisiológicos para activar el modo adaptativo. "
+        st.info(
+            "💡 Registra tus datos fisiológicos para activar el modo adaptativo. "
             "Por ahora el chat funciona en modo estándar."
         )
 
     st.divider()
 
-    # ── Controles ──
-    ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1, 1, 2])
+    # ── Controles mejorados ──
+    ctrl_col1, ctrl_col2 = st.columns([1, 1])
     with ctrl_col1:
         adversary_toggle = st.toggle(
-            "Modo Adversario",
+            "🔍 Modo Socrático",
             value=True,
-            help="Activa el cuestionamiento socrático para preguntas conceptuales.",
+            help="Activa el cuestionamiento socrático para preguntas conceptuales. "
+                  "La IA te hará preguntas en lugar de darte respuestas directas.",
         )
     with ctrl_col2:
-        if st.button("Limpiar Chat", type="secondary"):
+        if st.button("🗑️ Limpiar Chat", type="secondary", use_container_width=True):
             st.session_state.chat_messages = []
             retriever = st.session_state.retriever
             if retriever:
@@ -140,37 +148,111 @@ def render_chat(engine: Any) -> None:
 
     st.divider()
 
-    # ── Historial de mensajes ──
+    # ── Historial de mensajes mejorado ──
+    if not st.session_state.chat_messages:
+        st.markdown(
+            """
+            <div style="
+                text-align: center;
+                padding: 48px 24px;
+                color: #8b949e;
+            ">
+                <div style="font-size: 3em; margin-bottom: 16px;">💬</div>
+                <div style="font-size: 1.1em; margin-bottom: 8px;">Comienza una conversación</div>
+                <div style="font-size: 0.9em;">Escribe tu pregunta en el campo de abajo</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    
     for msg in st.session_state.chat_messages:
         with st.chat_message(msg["role"], avatar=msg.get("avatar")):
             st.markdown(msg["content"])
 
-            # Mostrar fuentes si las hay
+            # Mostrar fuentes si las hay (mejorado)
             if msg.get("sources"):
-                with st.expander("Ver fuentes", expanded=False):
-                    for src in msg["sources"]:
+                with st.expander("📚 Ver fuentes y referencias", expanded=False):
+                    for idx, src in enumerate(msg["sources"], 1):
                         if src.get("type") == "notes":
-                            st.caption(
-                                f"Apuntes: {src['filename']} (p.{src['page']}) "
-                                f"— Similitud: {src['score']:.2f}"
+                            st.markdown(
+                                f"""
+                                <div style="
+                                    background: #1a1d23;
+                                    border-left: 3px solid #58a6ff;
+                                    padding: 8px 12px;
+                                    margin: 4px 0;
+                                    border-radius: 4px;
+                                ">
+                                    <strong>📄 Apuntes:</strong> {src['filename']} (p.{src['page']})<br>
+                                    <span style="color: #8b949e; font-size: 0.85em;">
+                                        Similitud: {src['score']:.2f}
+                                    </span>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
                             )
                         elif src.get("type") == "web":
-                            st.caption(f"Web: [{src['title']}]({src['url']})")
+                            st.markdown(
+                                f"""
+                                <div style="
+                                    background: #1a1d23;
+                                    border-left: 3px solid #22c55e;
+                                    padding: 8px 12px;
+                                    margin: 4px 0;
+                                    border-radius: 4px;
+                                ">
+                                    <strong>🌐 Web:</strong> <a href="{src['url']}" target="_blank">{src['title']}</a><br>
+                                    <span style="color: #8b949e; font-size: 0.85em;">
+                                        Score: {src['score']:.2f}
+                                    </span>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
 
-            # Mostrar metadata de adversario
+            # Mostrar metadata de adversario mejorado
             if msg.get("adversary_info"):
                 info = msg["adversary_info"]
-                st.caption(
-                    f"Tipo: {info.get('question_type', '?')} · "
-                    f"Adversario: {'Activo' if info.get('active') else 'Inactivo'}"
-                    + (f" · Profundidad: {info['depth']}/5" if info.get('depth') else "")
-                )
+                if info.get("active"):
+                    st.markdown(
+                        f"""
+                        <div style="
+                            background: #f59e0b22;
+                            border: 1px solid #f59e0b44;
+                            border-radius: 6px;
+                            padding: 6px 10px;
+                            margin-top: 8px;
+                            font-size: 0.85em;
+                            color: #f59e0b;
+                        ">
+                            🔍 <strong>Modo Socrático Activo</strong> · 
+                            Tipo: {info.get('question_type', '?')}
+                            {f" · Profundidad: {info['depth']}/5" if info.get('depth') else ""}
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
-    # ── Input de chat ──
+    # ── Input de chat mejorado ──
+    st.markdown(
+        """
+        <div style="
+            background: #1a1d23;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 8px;
+            margin-top: 16px;
+        ">
+        """,
+        unsafe_allow_html=True,
+    )
+    
     prompt = st.chat_input(
-        "Escribe tu pregunta...",
+        "💬 Escribe tu pregunta... (soporta LaTeX con $$ y bloques de código)",
         key="chat_input",
     )
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if prompt:
         # Agregar mensaje del usuario

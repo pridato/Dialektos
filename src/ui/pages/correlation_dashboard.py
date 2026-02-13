@@ -36,12 +36,12 @@ from src.ui.components import COLORS, render_correlation_chart
 
 
 def render_correlation_dashboard(engine: Any) -> None:
-    """Renderiza la página del Dashboard de Correlación HRV-Rendimiento."""
+    """Renderiza la página del Dashboard de Correlación HRV-Rendimiento con diseño moderno."""
 
-    st.markdown("# Dashboard de Correlación HRV-Rendimiento")
+    st.markdown("# Analíticas")
     st.caption(
-        "Análisis estadístico de la relación entre tus métricas biológicas "
-        "y tu rendimiento de estudio. Requiere datos suficientes."
+        "Correlaciones y patrones de rendimiento. "
+        "Análisis estadístico de la relación entre tus métricas biológicas y tu rendimiento de estudio."
     )
 
     # ── Cargar datos ──

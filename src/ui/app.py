@@ -74,31 +74,84 @@ def _get_today_icd() -> Optional[float]:
 # ---------------------------------------------------------------------------
 
 with st.sidebar:
-    st.title("Dialektos")
-    st.caption("Bio-Adaptive Learning System")
+    st.markdown(
+        """
+        <div style="padding: 8px 0;">
+            <h1 style="font-size: 1.8em; margin: 0; color: #c9d1d9;">Dialektos</h1>
+            <p style="font-size: 0.85em; color: #8b949e; margin: 4px 0 0 0;">Sistema RAG Adaptativo</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.divider()
 
-    # Mostrar ICD actual como métrica destacada
+    # Mostrar ICD actual como métrica destacada mejorada
     icd_today = _get_today_icd()
     if icd_today is not None:
-        st.metric(label="ICD Hoy", value=f"{icd_today:.1f}")
-        # Color semántico según zona cognitiva
-        if icd_today > 80:
-            st.success("Peak — Deep Work")
-        elif icd_today > 50:
-            st.info("Normal — Flow")
-        elif icd_today > 30:
-            st.warning("Fatigue — Review")
-        else:
-            st.error("Burnout — Survival")
+        from src.bio.decision import get_strategy
+        
+        strategy = get_strategy(icd_today)
+        zone_color = strategy.color
+        
+        st.markdown(
+            f"""
+            <div style="
+                background: linear-gradient(135deg, {zone_color}22, {zone_color}08);
+                border: 1px solid {zone_color}44;
+                border-radius: 12px;
+                padding: 16px;
+                margin-bottom: 8px;
+            ">
+                <div style="font-size: 0.85em; color: #8b949e; margin-bottom: 4px;">ICD Hoy</div>
+                <div style="font-size: 2.2em; font-weight: 700; color: {zone_color};">
+                    {icd_today:.1f}
+                </div>
+                <div style="margin-top: 8px;">
+                    <span style="
+                        display: inline-block;
+                        background: {zone_color}44;
+                        color: {zone_color};
+                        padding: 4px 12px;
+                        border-radius: 12px;
+                        font-size: 0.85em;
+                        font-weight: 600;
+                    ">
+                        {strategy.emoji} {strategy.name}
+                    </span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     else:
-        st.metric(label="ICD Hoy", value="—")
-        st.caption("Sin datos biométricos para hoy.")
+        st.markdown(
+            """
+            <div style="
+                background: #1a1d23;
+                border: 1px solid #30363d;
+                border-radius: 12px;
+                padding: 16px;
+                margin-bottom: 8px;
+            ">
+                <div style="font-size: 0.85em; color: #8b949e; margin-bottom: 4px;">ICD Hoy</div>
+                <div style="font-size: 2.2em; font-weight: 700; color: #8b949e;">—</div>
+                <div style="margin-top: 8px; font-size: 0.8em; color: #8b949e;">
+                    Sin datos biométricos
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     st.divider()
 
-    # Navegación multi-página
+    # Navegación multi-página mejorada
+    st.markdown(
+        '<div style="font-size: 0.85em; color: #8b949e; margin-bottom: 8px; font-weight: 600;">NAVEGACIÓN</div>',
+        unsafe_allow_html=True,
+    )
+    
     page = st.radio(
         "Navegación",
         options=[
@@ -109,6 +162,24 @@ with st.sidebar:
             "Chat",
         ],
         label_visibility="collapsed",
+    )
+    
+    st.divider()
+    
+    # Footer del sidebar
+    st.markdown(
+        """
+        <div style="
+            position: fixed;
+            bottom: 16px;
+            left: 16px;
+            font-size: 0.75em;
+            color: #8b949e;
+        ">
+            <div>🧠 Bio-Adaptive Learning</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
 # ---------------------------------------------------------------------------
