@@ -46,3 +46,6 @@ pyyaml>=6.0
 requests==2.31.0
 pydantic==2.6.1
 tqdm>=4.66.0
+
+# notebook
+seaborn==0.13.2

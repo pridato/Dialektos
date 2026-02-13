@@ -144,7 +144,7 @@
 
 ### 3.3 Feature Engineering: Normalización y Baseline
 
-- [ ] **3.3.1 Cálculo de Métricas Derivadas**
+- [X] **3.3.1 Cálculo de Métricas Derivadas**
   - **Dificultad:** MEDIUM
   - *Detalle:* No guardar solo el dato crudo. Calcular al insertar cada registro:
     - `ln_rmssd`: `ln(hrv_rmssd)` — transforma la distribución log-normal de la HRV en una distribución más gaussiana.
@@ -154,7 +154,7 @@
 
 ### 3.4 Algoritmo ICD (Índice Cognitivo Diario)
 
-- [ ] **3.4.1 Implementación de `calculate_icd(metrics)`**
+- [X] **3.4.1 Implementación de `calculate_icd(metrics)`**
   - **Dificultad:** HARD
   - *Detalle:* Función que pondera métricas biológicas y subjetivas en un score único 0-100.
   - *Fórmula Propuesta (pesos iniciales — hipótesis a validar con datos):*
@@ -172,9 +172,10 @@
 
 ### 3.5 Motor de Decisión (Thresholding)
 
-- [ ] **3.5.1 Mapeo ICD → Estrategia Pedagógica**
+- [X] **3.5.1 Mapeo ICD → Estrategia Pedagógica**
   - **Dificultad:** MEDIUM
   - *Detalle:* Mapear el ICD a una estrategia pedagógica concreta.
+  - *Completado:* 2026-02-13. Implementado en `src/bio/decision.py` con enums `CognitiveZone` y `AIInteractionMode`, dataclass `PedagogicalStrategy`, umbrales configurables (`ThresholdConfig`) y prompt hints para el LLM. 25 tests en `test_decision.py`.
   - *Umbrales:*
     - **ICD > 80 (Peak):** "Deep Work". Temas nuevos, Matemáticas complejas, Prompt Socrático (La IA te interroga).
     - **ICD 50-80 (Normal):** "Flow". Práctica de programación, ejercicios estándar.
