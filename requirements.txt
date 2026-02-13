@@ -49,3 +49,7 @@ tqdm>=4.66.0
 
 # notebook
 seaborn==0.13.2
+
+# Statistical Analysis (Módulo Bio-Adaptabilidad § 3.7)
+scipy>=1.12.0
+pingouin>=0.5.4
