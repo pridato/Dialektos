@@ -68,6 +68,9 @@ class TavilyWebSearch:
         """
         Inicializa el cliente Tavily.
 
+        La inicialización del cliente HTTP es lazy (se hace solo cuando se llama a search()).
+        Esto evita errores de inicialización si hay problemas de compatibilidad.
+
         Args:
             api_key: Clave API de Tavily. Si es None, se carga desde
                 TAVILY_API_KEY en .env. Si no existe, el cliente queda
@@ -75,27 +78,77 @@ class TavilyWebSearch:
         """
         self._api_key: Optional[str] = api_key or os.getenv("TAVILY_API_KEY")
         self._client = None
+        self._initialization_error: Optional[str] = None
 
-        if self._api_key:
-            try:
-                from tavily import TavilyClient
-                self._client = TavilyClient(api_key=self._api_key)
-                logger.info("TavilyWebSearch inicializado correctamente")
-            except ImportError as e:
-                logger.warning(
-                    f"tavily-python no instalado. Web search deshabilitado: {e}"
-                )
-                self._client = None
-        else:
+        if not self._api_key:
             logger.warning(
                 "TAVILY_API_KEY no configurada. Web search deshabilitado. "
                 "Obtén una en https://app.tavily.com"
             )
 
+    def _ensure_client_initialized(self) -> bool:
+        """
+        Inicializa el cliente Tavily de forma lazy si aún no está inicializado.
+        
+        Returns:
+            True si el cliente está disponible, False en caso contrario.
+        """
+        if self._client is not None:
+            return True
+        
+        if self._initialization_error:
+            # Ya intentamos inicializar y falló, no intentar de nuevo
+            return False
+        
+        if not self._api_key:
+            return False
+        
+        try:
+            from tavily import TavilyClient
+            
+            # Verificar si hay variables de entorno de proxies que puedan causar problemas
+            proxy_vars = [
+                os.getenv("HTTP_PROXY"),
+                os.getenv("HTTPS_PROXY"),
+                os.getenv("http_proxy"),
+                os.getenv("https_proxy"),
+                os.getenv("TAVILY_HTTP_PROXY"),
+                os.getenv("TAVILY_HTTPS_PROXY"),
+            ]
+            has_proxy_config = any(proxy_vars)
+            
+            # Intentar inicializar TavilyClient
+            try:
+                self._client = TavilyClient(api_key=self._api_key)
+                logger.info("TavilyWebSearch inicializado correctamente")
+                return True
+            except TypeError as e:
+                # Manejar errores de argumentos inesperados (como proxies)
+                error_msg = str(e).lower()
+                if "proxies" in error_msg or "unexpected keyword" in error_msg:
+                    self._initialization_error = (
+                        f"Error de compatibilidad con TavilyClient relacionado con proxies: {e}. "
+                        f"Variables de proxy detectadas: {has_proxy_config}. "
+                        "Considera actualizar tavily-python: pip install --upgrade tavily-python"
+                    )
+                    logger.warning(self._initialization_error)
+                    return False
+                else:
+                    # Re-lanzar otros errores TypeError
+                    raise
+        except ImportError as e:
+            self._initialization_error = f"tavily-python no instalado: {e}"
+            logger.warning(f"{self._initialization_error}. Web search deshabilitado.")
+            return False
+        except Exception as e:
+            self._initialization_error = f"Error al inicializar TavilyClient: {e}"
+            logger.error(f"{self._initialization_error}. Web search deshabilitado.")
+            return False
+    
     @property
     def is_available(self) -> bool:
         """True si el cliente Tavily está listo para usar."""
-        return self._client is not None
+        return self._ensure_client_initialized()
 
     def search(
         self,
@@ -114,7 +167,7 @@ class TavilyWebSearch:
             Lista de WebSearchResult. Vacía si el cliente no está
             disponible, hay error de API, o no hay resultados.
         """
-        if not self._client:
+        if not self._ensure_client_initialized():
             return []
 
         if not query or not query.strip():

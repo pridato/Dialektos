@@ -1,25 +1,53 @@
 # Dialektos
 
-Sistema RAG (Retrieval-Augmented Generation) adaptativo para aprendizaje personalizado en Ciencia de Datos e Inteligencia Artificial, con motor de bio-adaptabilidad basado en datos fisiológicos (Suunto) y un Índice Cognitivo Diario (ICD).
+Sistema **RAG (Retrieval-Augmented Generation)** adaptativo para aprendizaje personalizado en Ciencia de Datos e IA, con motor de bio-adaptabilidad basado en biométricas (Suunto) y un **Índice Cognitivo Diario (ICD)** que adapta la dificultad del estudio a tu estado físico y mental.
+
+---
+
+## Índice
+
+- [Descripción](#descripción)
+- [Características principales](#características-principales)
+- [Arquitectura](#arquitectura)
+- [Flujos de datos](#flujos-de-datos)
+- [Instalación](#instalación)
+- [Uso](#uso)
+- [Modelo de datos (bio-adaptabilidad)](#modelo-de-datos-bio-adaptabilidad)
+- [Tecnologías](#tecnologías)
+- [Roadmap](#roadmap)
+- [Tests](#tests)
+- [Documentación](#documentación)
+- [Troubleshooting](#troubleshooting)
+- [Autor y licencia](#autor-y-licencia)
+
+---
 
 ## Descripción
 
-**Dialektos** es un asistente de estudio inteligente que combina:
+**Dialektos** es un asistente de estudio que combina tres pilares:
 
-1. **Búsqueda semántica vectorial** sobre tus apuntes (PDFs) con modelos de lenguaje (GPT-4o).
-2. **Motor de bio-adaptabilidad** que calcula un Índice Cognitivo Diario (ICD) a partir de biométricas de Suunto (HRV, sueño, body resources) y autoevaluación subjetiva, y adapta la dificultad del estudio en consecuencia.
-3. **Modo Adversario (Socrático)** que cuestiona tus respuestas en vez de dártelas directamente.
+| Pilar | Qué hace |
+|-------|----------|
+| **RAG sobre tus apuntes** | Búsqueda semántica vectorial sobre PDFs con GPT-4o. Respuestas basadas en tu material, no en conocimiento genérico. |
+| **Bio-adaptabilidad** | Calcula un **ICD** (0–100) a partir de HRV, sueño y body resources (Suunto) + autoevaluación. Adapta estrategia de estudio según tu estado. |
+| **Modo socrático** | La IA te cuestiona en lugar de dar la respuesta directa, para reforzar comprensión. |
 
-### Características Principales
+Todo corre en local (ChromaDB, SQLite); solo las llamadas a OpenAI y opcionalmente Tavily usan servicios externos.
 
-- **Vectorización Multilingüe**: Embeddings optimizados para español e inglés (Sentence Transformers, `paraphrase-multilingual-mpnet-base-v2`).
-- **Búsqueda Semántica con Filtros**: ChromaDB con filtros por metadata (asignatura, archivo, página).
-- **Router de Búsqueda**: Si la similitud en ChromaDB < 0.7, activa búsqueda web (Tavily) automáticamente.
-- **Modo Socrático**: Prompt engineering para que la IA te interrogue en vez de dar respuestas directas.
-- **Índice Cognitivo Diario (ICD)**: Score 0-100 que pondera HRV, sueño, body resources, energía y claridad mental.
-- **Motor de Decisión Pedagógica**: Mapea el ICD a estrategias de estudio (Deep Work, Flow, Review, Survival).
-- **Ingesta de Suunto**: Parser de JSON exportado desde la Suunto App.
-- **Persistencia Local**: SQLite para biométricas, ChromaDB para vectores. Sin servidor externo.
+---
+
+## Características principales
+
+- **Vectorización multilingüe**: Embeddings español/inglés (`paraphrase-multilingual-mpnet-base-v2`).
+- **Búsqueda semántica con filtros**: ChromaDB con metadata (asignatura, archivo, página).
+- **Router de búsqueda**: Si similitud en ChromaDB &lt; 0.7 → búsqueda web (Tavily) automática.
+- **Modo socrático**: Prompts para que la IA interrogue en vez de explicar directamente.
+- **ICD**: Score 0–100 que combina HRV, sueño, body resources, energía y claridad mental.
+- **Motor pedagógico**: ICD → zona cognitiva → estrategia (Deep Work, Flow, Review, Survival).
+- **Ingesta Suunto**: Parser de JSON exportado desde la Suunto App.
+- **Persistencia local**: SQLite para biométricas, ChromaDB para vectores.
+
+---
 
 ## Arquitectura
 
@@ -27,10 +55,10 @@ Sistema RAG (Retrieval-Augmented Generation) adaptativo para aprendizaje persona
 Dialektos/
 ├── src/
 │   ├── ingest/                    # Pipeline de ingesta de PDFs
-│   │   ├── pdf_reader.py          # Extracción de texto de PDFs
-│   │   ├── chroma_persistence.py  # Gestión de ChromaDB y búsqueda semántica
+│   │   ├── pdf_reader.py          # Extracción de texto
+│   │   ├── chroma_persistence.py  # ChromaDB y búsqueda semántica
 │   │   ├── text_cleaner.py        # Limpieza de texto
-│   │   ├── metadata_extractor.py  # Extracción de metadata estructurada
+│   │   ├── metadata_extractor.py  # Metadata estructurada
 │   │   ├── models.py              # Modelos Pydantic (DocumentChunk, etc.)
 │   │   └── embeddings_config.py   # Configuración de embeddings
 │   ├── brain/                     # Lógica RAG y razonamiento
@@ -43,43 +71,44 @@ Dialektos/
 │   └── bio/                       # Motor de bio-adaptabilidad
 │       ├── models.py              # SQLModel: DailyBiometrics, StudySession, DailyConfounders
 │       ├── db.py                  # Engine SQLite (data/metrics.db)
-│       ├── dao.py                 # CRUD con cálculo automático de métricas derivadas
+│       ├── dao.py                 # CRUD y métricas derivadas
 │       ├── metrics.py             # Feature engineering: ln_rmssd, EMA, ICD
-│       ├── decision.py            # ICD → zona cognitiva → estrategia pedagógica
+│       ├── decision.py            # ICD → zona → estrategia pedagógica
 │       ├── test_metrics.py        # Tests de métricas derivadas
 │       └── test_decision.py       # Tests del motor de decisión (25 tests)
 ├── scripts/
-│   ├── ingest_suunto_json.py      # Ingesta de datos Suunto vía DAO
-│   ├── ingest_suunto_data.py      # Ingesta alternativa
-│   └── ingest_json_simple.py      # Ingesta manual sin DAO
+│   ├── data/                      # Ingesta de datos
+│   │   ├── ingest_suunto_json.py  # Ingesta Suunto vía DAO
+│   │   ├── ingest_suunto_data.py  # Ingesta alternativa
+│   │   └── ingest_json_simple.py  # Ingesta manual sin DAO
+│   └── db/                        # Análisis y mantenimiento ChromaDB
+│       ├── *.sql                 # Consultas y auditoría
+│       ├── detect_duplicates.py  # Detección de duplicados
+│       └── README.md             # Guía de uso
 ├── notebooks/
 │   ├── icd_dashboard.ipynb        # Dashboard visual del ICD
-│   └── tarea_3.3_ln_rmssd_estudio.ipynb  # Estudio de normalización HRV
+│   └── tarea_3.3_ln_rmssd_estudio.ipynb
 ├── config/
 │   ├── user_profile.json          # Identidad, objetivos, preferencias
-│   └── metadata_config.yaml       # Metadata de PDFs por asignatura
+│   └── metadata_config.yaml      # Metadata de PDFs por asignatura
 ├── data/
 │   ├── raw_pdfs/                  # PDFs originales
-│   ├── processed/                 # Textos extraídos y chunks (JSON)
-│   ├── chroma_db/                 # Base de datos vectorial ChromaDB
-│   ├── biometrics/                # Exportaciones JSON de Suunto
-│   └── metrics.db                 # SQLite con biométricas y sesiones (runtime)
+│   ├── processed/                 # Textos y chunks (JSON)
+│   ├── chroma_db/                 # Base de datos vectorial
+│   ├── biometrics/                # Exportaciones JSON Suunto
+│   └── metrics.db                 # SQLite biométricas (runtime)
+├── apps/
+│   └── dashboard/                 # Dashboard Next.js
 ├── docs/                          # Documentación técnica
-│   ├── TAREAS.md                  # Roadmap detallado del proyecto
-│   ├── EMBEDDINGS_GUIDE.md        # Guía del sistema de vectorización
-│   └── RESUMEN_TAREAS_3_3.4.md    # Resumen de tareas de bio-adaptabilidad
-├── apps/                          # Aplicaciones separadas
-│   └── dashboard/                # Dashboard Next.js
-├── scripts/                       # Scripts de utilidad
-│   ├── data/                     # Scripts de ingesta de datos
-│   └── db/                       # Scripts SQL y análisis de bases de datos
 ├── tests/                         # Tests del proyecto
 └── logs/                          # Logs de procesamiento
 ```
 
-## Flujos de Datos
+---
 
-### Flujo RAG (Pregunta → Respuesta)
+## Flujos de datos
+
+### Flujo RAG (pregunta → respuesta)
 
 ```
 Pregunta del usuario
@@ -87,11 +116,11 @@ Pregunta del usuario
     → Búsqueda semántica en ChromaDB
     → Si similitud ≥ 0.7: usar apuntes
       Si similitud < 0.7: búsqueda web (Tavily)
-    → Construir prompt con perfil de usuario + contexto
+    → Construir prompt (perfil + contexto)
     → LLM (GPT-4o mini) → Respuesta
 ```
 
-### Flujo Bio-Adaptabilidad (Suunto → Estrategia)
+### Flujo bio-adaptabilidad (Suunto → estrategia)
 
 ```
 Exportación Suunto (JSON)
@@ -104,67 +133,65 @@ Exportación Suunto (JSON)
     → Guardar en metrics.db
     → classify_zone(icd_score) → CognitiveZone
     → get_strategy(zone) → PedagogicalStrategy
-        • ICD > 80: Deep Work (temas nuevos, socrático)
-        • ICD 50-80: Flow (práctica, ejercicios)
-        • ICD 30-50: Review (repaso espaciado)
-        • ICD < 30: Survival (solo contenido pasivo)
+        • ICD > 80:  Deep Work (temas nuevos, socrático)
+        • ICD 50–80: Flow (práctica, ejercicios)
+        • ICD 30–50: Review (repaso espaciado)
+        • ICD < 30:  Survival (solo contenido pasivo)
 ```
+
+---
 
 ## Instalación
 
-### Requisitos Previos
+### Requisitos
 
-- Python 3.11+
-- 4 GB de RAM mínimo (recomendado 8 GB)
-- ~500 MB de espacio para el modelo de embeddings
+- **Python 3.11+**
+- 4 GB RAM mínimo (recomendado 8 GB)
+- ~500 MB para el modelo de embeddings (descarga automática en primera ejecución)
 
-### 1. Clonar el Repositorio
+### Pasos
 
 ```bash
+# 1. Clonar
 git clone <repository-url>
 cd Dialektos
-```
 
-### 2. Crear Entorno Virtual
-
-```bash
+# 2. Entorno virtual
 python -m venv venv
-source venv/bin/activate  # En Windows: venv\Scripts\activate
-```
+source venv/bin/activate   # Windows: venv\Scripts\activate
 
-### 3. Instalar Dependencias
-
-```bash
+# 3. Dependencias
 pip install -r requirements.txt
-```
 
-**Nota:** En la primera ejecución, el modelo de Sentence Transformers (~420 MB) se descarga automáticamente en `~/.cache/huggingface/`.
-
-### 4. Configurar Variables de Entorno
-
-```bash
+# 4. Variables de entorno
 cp .env.example .env
-# Edita .env con tus API keys
+# Editar .env con tus API keys
 ```
+
+### Variables de entorno
 
 | Variable | Requerida | Descripción |
 |----------|-----------|-------------|
-| `OPENAI_API_KEY` | Sí | Para GPT-4o mini. Obtén en [OpenAI](https://platform.openai.com/api-keys) |
-| `TAVILY_API_KEY` | No | Para búsqueda web cuando similitud ChromaDB < 0.7. Obtén en [Tavily](https://app.tavily.com) |
+| `OPENAI_API_KEY` | Sí | GPT-4o mini. [OpenAI API Keys](https://platform.openai.com/api-keys) |
+| `TAVILY_API_KEY` | No | Búsqueda web cuando similitud ChromaDB &lt; 0.7. [Tavily](https://app.tavily.com) |
+
+---
 
 ## Uso
 
-### Pipeline RAG: Procesamiento de PDFs
+### Inicio rápido
 
-Coloca tus PDFs en `data/raw_pdfs/` y ejecuta:
+1. **Procesar PDFs**: Coloca PDFs en `data/raw_pdfs/` y ejecuta:
+   ```bash
+   python src/ingest/pdf_reader.py
+   ```
+2. **Ingesta Suunto** (opcional): Exportación JSON en `data/biometrics/`, luego:
+   ```bash
+   python scripts/data/ingest_suunto_json.py
+   ```
+3. **Consultar ICD y estrategia**: Ver ejemplos en [Consultar el ICD del día](#consultar-el-icd-del-día) y [Motor de decisión pedagógica](#motor-de-decisión-pedagógica).
 
-```bash
-python src/ingest/pdf_reader.py
-```
-
-Esto realiza: extracción de texto, limpieza, chunking inteligente (sin cortar frases), generación de embeddings y almacenamiento en ChromaDB.
-
-### Búsqueda Semántica
+### Búsqueda semántica
 
 ```python
 from src.ingest.chroma_persistence import ChromaDBPersistence
@@ -177,7 +204,7 @@ db = ChromaDBPersistence(
 # Búsqueda básica
 results = db.semantic_search(query="¿Qué es regresión lineal?", n_results=5)
 
-# Búsqueda con filtro por asignatura
+# Con filtro por asignatura
 results = db.search_with_filters(
     query="matrices y vectores",
     filters={"source_folder": "AlgebraLineal"},
@@ -185,17 +212,7 @@ results = db.search_with_filters(
 )
 ```
 
-### Ingesta de Datos Biométricos (Suunto)
-
-Coloca tu exportación JSON de Suunto en `data/biometrics/` y ejecuta:
-
-```bash
-python scripts/data/ingest_suunto_json.py
-```
-
-Esto parsea los datos de HRV, sueño y body resources, calcula las métricas derivadas (`ln_rmssd`, `hrv_baseline_7d`, `sleep_consistency`, `icd_score`) y los almacena en `data/metrics.db`.
-
-### Consultar el ICD del Día
+### Consultar el ICD del día
 
 ```python
 from src.bio.db import get_engine
@@ -212,7 +229,7 @@ with Session(engine) as session:
         print(f"ICD: {today.icd_score:.1f}/100")
 ```
 
-### Motor de Decisión Pedagógica
+### Motor de decisión pedagógica
 
 ```python
 from src.bio.decision import classify_zone, get_strategy
@@ -220,20 +237,22 @@ from src.bio.decision import classify_zone, get_strategy
 zone = classify_zone(icd_score=72.5)
 strategy = get_strategy(zone)
 
-print(f"Zona: {zone.value}")         # "normal"
-print(f"Modo IA: {strategy.ai_mode}") # "guided"
-print(f"Tareas: {strategy.tasks}")     # ["coding", "standard_exercises"]
+print(f"Zona: {zone.value}")           # "normal"
+print(f"Modo IA: {strategy.ai_mode}")  # "guided"
+print(f"Tareas: {strategy.tasks}")      # ["coding", "standard_exercises"]
 ```
 
-## Modelo de Datos (Bio-Adaptabilidad)
+---
 
-Esquema Star Schema en SQLite (`data/metrics.db`):
+## Modelo de datos (bio-adaptabilidad)
+
+Esquema tipo star en SQLite (`data/metrics.db`):
 
 | Tabla | Tipo | Descripción |
 |-------|------|-------------|
-| `DailyBiometrics` | Hechos (PK: date) | Datos objetivos Suunto + subjetivos + métricas derivadas |
-| `StudySession` | Dimensión (FK: date) | Sesiones de estudio (múltiples por día) — variable objetivo Y |
-| `DailyConfounders` | Dimensión (FK: date, 1:1) | Variables de confusión (cafeína, pantalla, estrés, ejercicio) |
+| `DailyBiometrics` | Hechos (PK: date) | Suunto + subjetivos + métricas derivadas |
+| `StudySession` | Dimensión (FK: date) | Sesiones de estudio (variable objetivo Y) |
+| `DailyConfounders` | Dimensión (FK: date, 1:1) | Confounders: cafeína, pantalla, estrés, ejercicio |
 
 ### Fórmula ICD
 
@@ -242,108 +261,77 @@ ICD = 0.25·Z(ln_rmssd) + 0.20·Z(sleep_quality) + 0.20·body_resources_norm
     + 0.15·energy_norm + 0.10·mental_clarity_norm + 0.10·mood_bonus
 ```
 
-Los pesos son hipótesis iniciales que se recalibrarán con regresión lineal tras acumular 30-60 días de datos.
+Los pesos son hipótesis iniciales; se recalibrarán con regresión lineal tras 30–60 días de datos.
+
+---
 
 ## Tecnologías
 
-### Core RAG
-- **LangChain** (0.1.9) — Framework para aplicaciones LLM
-- **ChromaDB** (≥0.5.0) — Base de datos vectorial
-- **Sentence Transformers** (2.5.1) — Embeddings multilingües
-- **OpenAI** (≥2.20.0) — GPT-4o mini
-- **Tavily** (0.3.3) — Búsqueda web (fallback del router)
+| Área | Stack |
+|------|--------|
+| **RAG** | LangChain, ChromaDB, Sentence Transformers, OpenAI (GPT-4o mini), Tavily |
+| **Bio** | SQLModel, NumPy, Pandas |
+| **Documentos** | PyPDF, tiktoken, PyYAML |
+| **UI / Viz** | Streamlit (planificado), Plotly, Matplotlib, Seaborn |
+| **Dashboard** | Next.js (apps/dashboard) |
 
-### Bio-Adaptabilidad
-- **SQLModel** (≥0.0.14) — ORM para metrics.db
-- **NumPy** (1.26.4) — Operaciones numéricas (EMA, Z-scores)
-- **Pandas** (2.2.0) — Análisis y manipulación de datos
-
-### Procesamiento de Documentos
-- **PyPDF** (4.0.1) — Extracción de texto de PDFs
-- **tiktoken** (0.6.0) — Tokenización
-- **PyYAML** (≥6.0) — Configuración de metadata
-
-### UI y Visualización
-- **Streamlit** (1.31.1) — Interfaz de usuario (planificado)
-- **Plotly** (5.19.0) — Visualizaciones interactivas
-- **Matplotlib** (3.8.3) — Gráficos estáticos
-- **Seaborn** (0.13.2) — Visualización estadística
+---
 
 ## Roadmap
 
 ### Completado
 
-- [x] **Módulo 1 — Data Pipeline**: Extracción de PDFs, chunking, vectorización, ChromaDB, metadata
-- [x] **Módulo 2 — Core Logic**: Conexión LLM, retrieval, perfil de usuario, modo socrático, router web
-- [x] **Módulo 3.1** — Modelado de datos: `DailyBiometrics`, `StudySession`, `DailyConfounders`
-- [x] **Módulo 3.2** — Ingesta de datos Suunto (parser JSON)
-- [x] **Módulo 3.3** — Feature engineering: `ln_rmssd`, `hrv_baseline_7d`, `sleep_consistency`
-- [x] **Módulo 3.4** — Algoritmo ICD (`calculate_icd`)
-- [x] **Módulo 3.5** — Motor de decisión: ICD → zona cognitiva → estrategia pedagógica
+- [x] Módulo 1 — Data pipeline (PDFs, chunking, vectorización, ChromaDB)
+- [x] Módulo 2 — Core RAG (LLM, retrieval, perfil, modo socrático, router web)
+- [x] Módulos 3.1–3.5 — Modelado, ingesta Suunto, métricas, ICD, motor de decisión
 
-### En Desarrollo
+### En desarrollo
 
-- [ ] **Módulo 3.6** — Sistema de registro post-sesión (formulario `StudySession`)
-- [ ] **Módulo 3.7** — Análisis de correlación semanal (HRV vs. rendimiento, confounders)
+- [ ] Módulo 3.6 — Registro post-sesión (formulario `StudySession`)
+- [ ] Módulo 3.7 — Correlación semanal (HRV vs. rendimiento, confounders)
 
 ### Planificado
 
-- [ ] **Módulo 4** — Interfaz Streamlit completa:
-  - Chat adaptativo con modo según ICD
-  - Dashboard ICD en tiempo real
-  - Tracking de sesiones de estudio
-  - Dashboard de correlación HRV-Rendimiento
-- [ ] **Módulo 5** — DevOps: gestión de secretos, refactorización modular
+- [ ] Módulo 4 — Interfaz Streamlit: chat adaptativo por ICD, dashboard ICD, tracking de sesiones
+- [ ] Módulo 5 — DevOps: secretos, refactorización modular
 
-Ver [TAREAS.md](docs/TAREAS.md) para el roadmap detallado con niveles de dificultad.
+Detalle por tareas y dificultad: [docs/TAREAS.md](docs/TAREAS.md).
+
+---
 
 ## Tests
 
 ```bash
-# Tests del motor de decisión (25 tests)
+# Motor de decisión (25 tests)
 pytest src/bio/test_decision.py -v
 
-# Verificación de métricas derivadas
+# Métricas derivadas
 python src/bio/test_metrics.py
 ```
 
-## Documentación Adicional
+---
 
-- [**Guía de Embeddings**](docs/EMBEDDINGS_GUIDE.md) — Sistema de vectorización completo
-- [**Tareas del Proyecto**](docs/TAREAS.md) — Roadmap detallado por módulos
-- [**Resumen Bio-Adaptabilidad**](docs/RESUMEN_TAREAS_3_3.4.md) — Tareas 3.3 y 3.4
-- [**SQL README**](scripts/db/README.md) — Análisis y consultas SQL sobre ChromaDB
+## Documentación
 
-## Troubleshooting
-
-### Error: `ModuleNotFoundError: No module named 'sentence_transformers'`
-
-```bash
-pip install sentence-transformers torch
-```
-
-### Error: `ChromaDB collection already exists with different embedding dimension`
-
-```python
-db.reset_collection()  # Resetear y re-vectorizar
-```
-
-### PDFs no se procesan correctamente
-
-- Verifica que los PDFs no estén protegidos con contraseña
-- PDFs escaneados requieren OCR (no implementado)
-- Revisa `logs/pdf_extraction.log`
-
-## Autor
-
-**David Arroyo**
-- Proyecto: Sistema RAG Adaptativo para Aprendizaje en Data Science
-- Contexto: Universidad, especialización en Ciencia de Datos e IA
-
-## Licencia
-
-Proyecto de código abierto para fines educativos.
+- [Guía de Embeddings](docs/EMBEDDINGS_GUIDE.md) — Vectorización y ChromaDB
+- [Tareas del proyecto](docs/TAREAS.md) — Roadmap por módulos
+- [Resumen Bio-Adaptabilidad](docs/RESUMEN_TAREAS_3_3.4.md) — Tareas 3.3 y 3.4
+- [SQL y ChromaDB](scripts/db/README.md) — Consultas y análisis
 
 ---
 
-*Proyecto en desarrollo activo. Última actualización: febrero 2026.*
+## Troubleshooting
+
+| Problema | Solución |
+|----------|----------|
+| `ModuleNotFoundError: sentence_transformers` | `pip install sentence-transformers torch` |
+| ChromaDB: *collection already exists with different embedding dimension* | `db.reset_collection()` y re-vectorizar |
+| PDFs no se procesan | Sin contraseña; escaneados requieren OCR (no incluido). Revisar `logs/pdf_extraction.log` |
+
+---
+
+## Autor y licencia
+
+**David Arroyo** — Proyecto de sistema RAG adaptativo para aprendizaje en Data Science (contexto universitario).
+
+Código abierto para fines educativos. Última actualización: febrero 2026.
