@@ -13,8 +13,9 @@ torch>=2.0.0
 # PDF Processing
 pypdf==4.0.1
 
-# LLM Providers
+# LLM Providers (httpx<0.28 por incompatibilidad openai+proxies)
 openai>=2.20.0
+httpx>=0.27.0,<0.28.0
 
 # Environment Variables
 python-dotenv==1.0.1
