@@ -25,7 +25,7 @@ import { BiometricInputManual } from '@/components/biometric-input-manual'
 import { ActiveSessionHUD } from '@/components/active-session-hud'
 import { useChat } from '@/hooks/use-chat'
 import { api } from '@/lib/api'
-import { ChatMessageContent } from '@/components/chat-message-content'
+import MarkdownRenderer from '@/components/markdown-renderer'
 import type { StudySessionRecord } from '@/lib/session-types'
 
 type View = 'dashboard' | 'chat' | 'biotracker' | 'analytics' | 'session'
@@ -661,10 +661,9 @@ export default function Page() {
                             : 'bg-[hsl(var(--chat-bubble-ai))] text-foreground border border-[hsl(var(--chat-border))] rounded-bl-md backdrop-blur-sm'
                         }`}
                       >
-                        <ChatMessageContent
-                          content={msg.text}
-                          isStreaming={isStreamingBubble}
-                        />
+                        <div className={`w-full min-w-0 ${isStreamingBubble ? 'font-mono' : ''}`}>
+                          <MarkdownRenderer content={msg.text} />
+                        </div>
                         {msg.sources && msg.sources.length > 0 && (
                           <Accordion type="single" collapsible className="mt-3">
                             <AccordionItem value="sources" className="border-0">

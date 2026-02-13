@@ -134,3 +134,11 @@ body {
     @apply bg-background text-foreground antialiased;
   }
 }
+
+/* Markdown Chat Styles */
+.markdown-prose { word-break: break-word; }
+.markdown-prose p { margin-bottom: 0.75rem; }
+.markdown-prose p:last-child { margin-bottom: 0; }
+.katex-display { overflow-x: auto; padding: 0.5rem 0; margin: 0.5rem 0; }
+.markdown-prose blockquote { border-left: 4px solid hsl(var(--muted-foreground)); padding-left: 1rem; margin: 1rem 0; font-style: italic; color: hsl(var(--muted-foreground)); }
+.markdown-prose strong { font-weight: 600; color: hsl(var(--foreground)); }
