@@ -48,16 +48,19 @@ export default function Page() {
     }).catch(console.error)
   }, [])
   
-  // Biometrics con valores por defecto
+  // Sin datos de hoy: no confundir con "valores en cero"
+  const hasTodayData = todayBiometrics != null && !bioLoading
+
+  // Biometrics con valores por defecto (solo significativos si hasTodayData)
   const biometrics = {
-    hrv: { 
-      value: todayBiometrics?.hrv_rmssd ?? 0, 
+    hrv: {
+      value: todayBiometrics?.hrv_rmssd ?? 0,
       ln: todayBiometrics?.ln_rmssd ?? 0,
       trend: 'up' as const
     },
     sleep: todayBiometrics?.sleep_quality ?? 0,
     battery: todayBiometrics?.body_resources ?? 0,
-    recovery: (todayBiometrics?.body_resources ?? 0) > 70 ? 'Óptima' : 
+    recovery: (todayBiometrics?.body_resources ?? 0) > 70 ? 'Óptima' :
               (todayBiometrics?.body_resources ?? 0) > 50 ? 'Normal' : 'Baja'
   }
 
@@ -320,65 +323,81 @@ export default function Page() {
 
               {/* Biometrics Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-medium">VFC (lnRMSSD)</CardTitle>
-                      <Heart className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-2xl font-bold">{biometrics.hrv.value} ms</p>
-                        <p className="text-xs text-muted-foreground">ln: {biometrics.hrv.ln}</p>
-                      </div>
-                      {biometrics.hrv.trend === 'up' ? (
-                        <TrendingUp className="h-6 w-6 text-green-500" />
-                      ) : (
-                        <TrendingDown className="h-6 w-6 text-red-500" />
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                {!hasTodayData ? (
+                  <Card className="md:col-span-2 lg:col-span-4">
+                    <CardContent className="p-6">
+                      <p className="text-muted-foreground text-center mb-2">
+                        Sin datos biométricos para hoy
+                      </p>
+                      <p className="text-sm text-muted-foreground text-center">
+                        Exporta datos desde la app Suunto a <code className="text-foreground">data/biometrics/</code> y ejecuta{' '}
+                        <code className="text-foreground">python scripts/data/ingest_suunto_json.py</code>, o añade el día en Bio-Tracker.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-medium">VFC (lnRMSSD)</CardTitle>
+                          <Heart className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-2xl font-bold">{biometrics.hrv.value} ms</p>
+                            <p className="text-xs text-muted-foreground">ln: {biometrics.hrv.ln}</p>
+                          </div>
+                          {biometrics.hrv.trend === 'up' ? (
+                            <TrendingUp className="h-6 w-6 text-green-500" />
+                          ) : (
+                            <TrendingDown className="h-6 w-6 text-red-500" />
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-medium">Calidad de Sueño</CardTitle>
-                      <Moon className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold mb-2">{biometrics.sleep}%</p>
-                    <Progress value={biometrics.sleep} className="h-2" />
-                  </CardContent>
-                </Card>
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-medium">Calidad de Sueño</CardTitle>
+                          <Moon className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-2xl font-bold mb-2">{biometrics.sleep}%</p>
+                        <Progress value={biometrics.sleep} className="h-2" />
+                      </CardContent>
+                    </Card>
 
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-medium">Batería Corporal</CardTitle>
-                      <Battery className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold mb-2">{biometrics.battery}/100</p>
-                    <Progress value={biometrics.battery} className="h-2" />
-                  </CardContent>
-                </Card>
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-medium">Batería Corporal</CardTitle>
+                          <Battery className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-2xl font-bold mb-2">{biometrics.battery}/100</p>
+                        <Progress value={biometrics.battery} className="h-2" />
+                      </CardContent>
+                    </Card>
 
-                <Card>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-medium">Estado Recuperación</CardTitle>
-                      <Zap className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-bold">{biometrics.recovery}</p>
-                  </CardContent>
-                </Card>
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-medium">Estado Recuperación</CardTitle>
+                          <Zap className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-2xl font-bold">{biometrics.recovery}</p>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
               </div>
 
               {/* Study Streak */}
