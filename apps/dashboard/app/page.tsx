@@ -53,6 +53,11 @@ export default function Page() {
       setStudyStreak(data.days)
     }).catch(console.error)
   }, [])
+
+  // Precalentar backend del chat al abrir la vista para que la primera pregunta sea rápida
+  useEffect(() => {
+    if (currentView === 'chat') api.warmupChat()
+  }, [currentView])
   
   // Sin datos de hoy: no confundir con "valores en cero"
   const hasTodayData = todayBiometrics != null && !bioLoading

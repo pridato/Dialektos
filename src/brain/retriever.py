@@ -19,14 +19,16 @@ Autor: David Arroyo
 Proyecto: Dialektos - Sistema RAG Adaptativo
 """
 
+import asyncio
 import logging
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, AsyncIterator, Dict, List, Literal, Optional
+import queue
 
 from pydantic import BaseModel, Field
 
 from src.ingest.chroma_persistence import ChromaDBPersistence
 from src.brain.web_search import TavilyWebSearch, WebSearchResult
-from src.brain.llm_client import query_llm, query_llm_with_history
+from src.brain.llm_client import query_llm, query_llm_with_history, query_llm_with_history_stream
 from src.brain.memory import ConversationMemory
 from src.brain.user_profile import build_enriched_system_prompt
 from src.brain.adversary import AdversarySession, QuestionType
@@ -348,6 +350,68 @@ class Retriever:
             logger.warning(f"  Query rewriting falló: {e}. Usando original.")
             return pregunta
 
+    def _fetch_chroma_and_web_parallel(
+        self,
+        search_query: str,
+        n_chunks: int,
+        min_similarity: float,
+    ) -> tuple[List[Dict[str, Any]], List[WebSearchResult]]:
+        """
+        Ejecuta Chroma y búsqueda web en paralelo con ThreadPoolExecutor.
+        Permite reducir latencia cuando se necesita fallback a web.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        def chroma_search() -> List[Dict[str, Any]]:
+            return self.db.semantic_search(
+                query=search_query,
+                n_results=n_chunks,
+                min_similarity=min_similarity,
+            )
+
+        def web_search_fn() -> List[WebSearchResult]:
+            if self.web_search.is_available:
+                return self.web_search.search(search_query, max_results=5)
+            return []
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            chroma_future = executor.submit(chroma_search)
+            web_future = executor.submit(web_search_fn)
+            chunks = chroma_future.result()
+            web_results = web_future.result()
+        return chunks, web_results
+
+    async def _fetch_chroma_and_web_async(
+        self,
+        search_query: str,
+        n_chunks: int,
+        min_similarity: float,
+    ) -> tuple[List[Dict[str, Any]], List[WebSearchResult]]:
+        """
+        Ejecuta Chroma y búsqueda web en paralelo con asyncio.gather.
+        Usado por retrieve_and_query_async (endpoint API).
+        """
+        async def chroma_search() -> List[Dict[str, Any]]:
+            return await asyncio.to_thread(
+                self.db.semantic_search,
+                query=search_query,
+                n_results=n_chunks,
+                min_similarity=min_similarity,
+            )
+
+        async def web_search_fn() -> List[WebSearchResult]:
+            if self.web_search.is_available:
+                return await asyncio.to_thread(
+                    self.web_search.search, search_query, 5
+                )
+            return []
+
+        chunks, web_results = await asyncio.gather(
+            chroma_search(),
+            web_search_fn(),
+        )
+        return chunks, web_results
+
     def clear_memory(self) -> None:
         """
         Reinicia el historial de conversación y la sesión adversaria.
@@ -521,10 +585,10 @@ class Retriever:
             logger.info(
                 f"  Query reescrita para búsqueda: '{search_query[:80]}'")
 
-        # ── 4. Búsqueda semántica en ChromaDB ────────────────────
-        chunks: List[Dict[str, Any]] = self.db.semantic_search(
-            query=search_query,
-            n_results=n_chunks,
+        # ── 4. Búsqueda semántica + web en paralelo ────────────────────────
+        chunks, web_results_parallel = self._fetch_chroma_and_web_parallel(
+            search_query=search_query,
+            n_chunks=n_chunks,
             min_similarity=min_similarity,
         )
 
@@ -546,16 +610,12 @@ class Retriever:
             source_type: Literal["notes", "web"] = "notes"
             n_context_sources: int = len(sources)
         else:
-            # Similitud baja: activar búsqueda web (Tavily)
+            # Similitud baja: usar resultados web (ya obtenidos en paralelo)
             logger.info(
                 f"  Similitud baja (max={max_score:.2f} < {self.similarity_threshold}). "
-                "Activando búsqueda web."
+                "Usando búsqueda web."
             )
-            web_results: List[WebSearchResult] = (
-                self.web_search.search(search_query, max_results=5)
-                if self.web_search.is_available
-                else []
-            )
+            web_results: List[WebSearchResult] = web_results_parallel
 
             if not web_results:
                 if not self.web_search.is_available:
@@ -677,6 +737,336 @@ class Retriever:
                 logger.debug("RAG semantic cache set failed: %s", e)
 
         return response
+
+    async def retrieve_and_query_async(
+        self,
+        pregunta: str,
+        *,
+        n_chunks: int = 3,
+        min_similarity: float = 0.25,
+        adversary_mode: Optional[bool] = None,
+        stream_callback: Optional[Any] = None,
+    ) -> RAGResponse:
+        """
+        Versión async de retrieve_and_query.
+        Usa asyncio.gather para lanzar Chroma y búsqueda web en paralelo.
+        Pensado para el endpoint API (no bloquea el event loop).
+        """
+        if not pregunta or not pregunta.strip():
+            raise ValueError("La pregunta no puede estar vacía.")
+
+        if self.semantic_cache:
+            cached = self.semantic_cache.get(pregunta.strip())
+            if cached:
+                try:
+                    response = RAGResponse.model_validate(cached)
+                    self.memory.add_user_message(pregunta)
+                    self.memory.add_assistant_message(response.answer)
+                    logger.info("RAG cache hit (semantic similarity)")
+                    if stream_callback is not None:
+                        meta = {"sources": self._sources_to_dict(response), "adversary_info": {}}
+                        stream_callback(("meta", meta))
+                        stream_callback(("done", response.answer))
+                    return response
+                except Exception as e:
+                    logger.debug("RAG cache hit but invalid payload: %s", e)
+
+        use_adversary: bool = (
+            adversary_mode if adversary_mode is not None else self.adversary_enabled
+        )
+        logger.info(
+            f"RAG query (async): '{pregunta[:80]}...' (adversario: {use_adversary})"
+        )
+
+        detected_question_type: QuestionType = (
+            self.adversary_session.analyzer.analyze_question(pregunta)
+        )
+        history: List[Dict[str, str]] = self.memory.get_messages()
+        should_reset_adversary: bool = False
+        adversary_activated: bool = False
+        adversary_depth: Optional[int] = None
+
+        if use_adversary and self.adversary_session.state.is_active:
+            adversary_activated = True
+            adversary_depth = self.adversary_session.state.question_depth + 1
+            self.adversary_session.add_user_response(pregunta)
+
+            if self.adversary_session.should_provide_context():
+                should_reset_adversary = True
+            else:
+                socratic_question: str = (
+                    self.adversary_session.generate_socratic_question(pregunta)
+                )
+                self.memory.add_user_message(pregunta)
+                self.memory.add_assistant_message(socratic_question)
+                if stream_callback is not None:
+                    meta = {"sources": [], "adversary_info": {"active": True, "depth": self.adversary_session.state.question_depth}}
+                    stream_callback(("meta", meta))
+                    stream_callback(("done", socratic_question))
+                return RAGResponse(
+                    answer=socratic_question,
+                    sources=[],
+                    had_context=False,
+                    query=pregunta,
+                    n_chunks_retrieved=0,
+                    question_type=detected_question_type,
+                    adversary_activated=True,
+                    adversary_depth=self.adversary_session.state.question_depth,
+                )
+
+        elif use_adversary and not self.adversary_session.state.is_active:
+            if self.adversary_session.should_activate(pregunta):
+                adversary_activated = True
+                adversary_depth = 1
+                socratic_question = (
+                    self.adversary_session.generate_socratic_question(pregunta)
+                )
+                self.memory.add_user_message(pregunta)
+                self.memory.add_assistant_message(socratic_question)
+                if stream_callback is not None:
+                    meta = {"sources": [], "adversary_info": {"active": True, "depth": 1}}
+                    stream_callback(("meta", meta))
+                    stream_callback(("done", socratic_question))
+                return RAGResponse(
+                    answer=socratic_question,
+                    sources=[],
+                    had_context=False,
+                    query=pregunta,
+                    n_chunks_retrieved=0,
+                    question_type=detected_question_type,
+                    adversary_activated=True,
+                    adversary_depth=1,
+                )
+
+        search_query: str = pregunta
+        if not self.memory.is_first_turn and not (
+            use_adversary and self.adversary_session.state.is_active
+        ):
+            search_query = self._rewrite_query(pregunta, history)
+            logger.info(f"  Query reescrita para búsqueda: '{search_query[:80]}'")
+
+        chunks, web_results_parallel = await self._fetch_chroma_and_web_async(
+            search_query=search_query,
+            n_chunks=n_chunks,
+            min_similarity=min_similarity,
+        )
+
+        logger.info(f"  Chunks recuperados: {len(chunks)}")
+
+        max_score: float = max(c["score"] for c in chunks) if chunks else 0.0
+        use_notes: bool = max_score >= self.similarity_threshold
+
+        if use_notes and chunks:
+            context = self._format_context(chunks)
+            sources = [RetrievedChunk(**c) for c in chunks]
+            web_sources = []
+            source_type = "notes"
+            n_context_sources = len(sources)
+        else:
+            logger.info(
+                f"  Similitud baja (max={max_score:.2f} < {self.similarity_threshold}). "
+                "Usando búsqueda web."
+            )
+            web_results = web_results_parallel
+
+            if not web_results:
+                self.memory.add_user_message(pregunta)
+                self.memory.add_assistant_message(NO_CONTEXT_MESSAGE)
+                if should_reset_adversary:
+                    self.adversary_session.reset()
+                if stream_callback is not None:
+                    meta = {"sources": [], "adversary_info": {"active": adversary_activated, "depth": adversary_depth}}
+                    stream_callback(("meta", meta))
+                    stream_callback(("done", NO_CONTEXT_MESSAGE))
+                return RAGResponse(
+                    answer=NO_CONTEXT_MESSAGE,
+                    sources=[],
+                    had_context=False,
+                    query=pregunta,
+                    n_chunks_retrieved=0,
+                    question_type=detected_question_type,
+                    adversary_activated=adversary_activated,
+                    adversary_depth=adversary_depth,
+                    source_type="notes",
+                    web_sources=[],
+                )
+
+            context = self._format_web_context(web_results)
+            sources = []
+            web_sources = web_results
+            source_type = "web"
+            n_context_sources = len(web_sources)
+
+        question_for_rag = pregunta
+        if use_adversary and should_reset_adversary:
+            question_for_rag = self.adversary_session.state.original_question
+
+        if source_type == "web":
+            user_template = RAG_WEB_USER_TEMPLATE
+            base_system_prompt = RAG_WEB_SYSTEM_PROMPT
+        else:
+            user_template = RAG_USER_TEMPLATE
+            base_system_prompt = RAG_SYSTEM_PROMPT
+
+        if use_adversary and should_reset_adversary and source_type == "notes":
+            enriched_prompt = (
+                "El estudiante ha demostrado comprensión del concepto. "
+                "Ahora proporciona información adicional basada en los apuntes:\n\n"
+                + user_template.format(context=context, question=question_for_rag)
+            )
+        else:
+            enriched_prompt = user_template.format(
+                context=context,
+                question=question_for_rag,
+            )
+
+        enriched_system_prompt = build_enriched_system_prompt(base_system_prompt)
+
+        if stream_callback is not None:
+            sources_data = [
+                {"type": "notes", "filename": s.metadata.get("filename", "?"),
+                 "page": s.metadata.get("page_number", "?"), "score": s.score}
+                for s in sources
+            ] if source_type == "notes" else [
+                {"type": "web", "title": w.title, "url": w.url, "score": w.score}
+                for w in web_sources
+            ]
+            stream_callback(("meta", {
+                "sources": sources_data,
+                "adversary_info": {
+                    "question_type": detected_question_type.value if detected_question_type else None,
+                    "active": adversary_activated,
+                    "depth": adversary_depth,
+                },
+            }))
+
+            def _run_stream() -> str:
+                full: List[str] = []
+                for chunk in query_llm_with_history_stream(
+                    enriched_prompt,
+                    history=history,
+                    system_prompt=enriched_system_prompt,
+                    temperature=0.3,
+                ):
+                    full.append(chunk)
+                    stream_callback(("token", chunk))
+                answer_full = "".join(full)
+                stream_callback(("done", answer_full))
+                return answer_full
+
+            answer = await asyncio.to_thread(_run_stream)
+        else:
+            answer = await asyncio.to_thread(
+                query_llm_with_history,
+                enriched_prompt,
+                history=history,
+                system_prompt=enriched_system_prompt,
+                temperature=0.3,
+            )
+
+        if should_reset_adversary:
+            self.adversary_session.reset()
+
+        self.memory.add_user_message(pregunta)
+        self.memory.add_assistant_message(answer)
+
+        response = RAGResponse(
+            answer=answer,
+            sources=sources,
+            had_context=True,
+            query=question_for_rag if (use_adversary and should_reset_adversary) else pregunta,
+            n_chunks_retrieved=n_context_sources,
+            question_type=detected_question_type,
+            adversary_activated=adversary_activated,
+            adversary_depth=adversary_depth if adversary_activated else None,
+            source_type=source_type,
+            web_sources=web_sources,
+        )
+
+        if self.semantic_cache:
+            try:
+                self.semantic_cache.set(
+                    pregunta.strip(),
+                    response.model_dump(mode="json"),
+                )
+            except Exception as e:
+                logger.debug("RAG semantic cache set failed: %s", e)
+
+        return response
+
+    async def retrieve_and_query_stream(
+        self,
+        pregunta: str,
+        *,
+        n_chunks: int = 3,
+        min_similarity: float = 0.25,
+        adversary_mode: Optional[bool] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """
+        Generador async que emite eventos NDJSON para streaming:
+        - {"event":"meta","sources":[...],"adversary_info":{...}}
+        - {"event":"token","content":"..."}
+        - {"event":"done","answer":"...","sources":[...]}
+        """
+        q: queue.Queue = queue.Queue()
+
+        def stream_callback(item: tuple[str, Any]) -> None:
+            q.put(item)
+
+        async def run_retrieval() -> None:
+            await self.retrieve_and_query_async(
+                pregunta,
+                n_chunks=n_chunks,
+                min_similarity=min_similarity,
+                adversary_mode=adversary_mode,
+                stream_callback=stream_callback,
+            )
+
+        task = asyncio.create_task(run_retrieval())
+
+        last_meta: Dict[str, Any] = {}
+        while True:
+            try:
+                event_type, data = q.get_nowait()
+            except queue.Empty:
+                await asyncio.sleep(0.01)
+                continue
+            if event_type == "meta":
+                last_meta = data
+                yield {"event": "meta", **data}
+            elif event_type == "token":
+                yield {"event": "token", "content": data}
+            else:
+                yield {
+                    "event": "done",
+                    "answer": data,
+                    "sources": last_meta.get("sources", []),
+                    "adversary_info": last_meta.get("adversary_info", {}),
+                }
+                break
+
+        await task
+
+    def _sources_to_dict(self, response: RAGResponse) -> List[Dict[str, Any]]:
+        """Convierte sources y web_sources a formato dict para el API."""
+        out: List[Dict[str, Any]] = []
+        if response.source_type == "notes" and response.sources:
+            for src in response.sources:
+                out.append({
+                    "type": "notes",
+                    "filename": src.metadata.get("filename", "?"),
+                    "page": src.metadata.get("page_number", "?"),
+                    "score": src.score,
+                })
+        elif response.source_type == "web" and response.web_sources:
+            for src in response.web_sources:
+                out.append({
+                    "type": "web",
+                    "title": src.title,
+                    "url": src.url,
+                    "score": src.score,
+                })
+        return out
 
 
 # ─── REPL de prueba ──────────────────────────────────────────

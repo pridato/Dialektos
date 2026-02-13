@@ -15,7 +15,7 @@ Proyecto: Dialektos - Sistema RAG Adaptativo
 """
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 from dotenv import load_dotenv
 from openai import OpenAI, OpenAIError
@@ -196,6 +196,65 @@ def query_llm_with_history(
         )
         return response.choices[0].message.content or ""
 
+    except OpenAIError as e:
+        raise OpenAIError(f"Error al consultar el LLM: {e}") from e
+
+
+# ─── Streaming ───────────────────────────────────────────────
+def query_llm_with_history_stream(
+    pregunta: str,
+    history: List[Dict[str, str]],
+    *,
+    system_prompt: str = SYSTEM_PROMPT,
+    model: str = DEFAULT_MODEL,
+    temperature: float = DEFAULT_TEMPERATURE,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
+) -> Iterator[str]:
+    """
+    Versión streaming de query_llm_with_history.
+    Genera chunks de texto conforme el LLM los produce.
+
+    Args:
+        pregunta: La pregunta actual del usuario.
+        history: Historial de mensajes previos.
+        system_prompt: Instrucciones del modelo.
+        model: Modelo OpenAI.
+        temperature: Temperatura de generación.
+        max_tokens: Límite de tokens.
+
+    Yields:
+        Fragmentos de texto de la respuesta.
+
+    Example:
+        >>> for chunk in query_llm_with_history_stream("¿Qué es?", history):
+        ...     print(chunk, end="", flush=True)
+    """
+    if not pregunta.strip():
+        raise ValueError("La pregunta no puede estar vacía.")
+
+    final_prompt: str = system_prompt
+    if system_prompt == SYSTEM_PROMPT:
+        final_prompt = build_enriched_system_prompt(SYSTEM_PROMPT)
+
+    client: OpenAI = _get_client()
+
+    messages: List[Dict[str, str]] = [
+        {"role": "system", "content": final_prompt},
+    ]
+    messages.extend(history)
+    messages.append({"role": "user", "content": pregunta})
+
+    try:
+        stream = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
+        )
+        for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
     except OpenAIError as e:
         raise OpenAIError(f"Error al consultar el LLM: {e}") from e
 

@@ -11,7 +11,7 @@ Autor: David Arroyo
 Proyecto: Dialektos - Sistema RAG Adaptativo
 """
 
-from .llm_client import query_llm, query_llm_with_history
+from .llm_client import query_llm, query_llm_with_history, query_llm_with_history_stream
 from .memory import ConversationMemory, ChatMessage
 from .retriever import Retriever, RAGResponse, RetrievedChunk
 from .web_search import TavilyWebSearch, WebSearchResult
@@ -26,6 +26,7 @@ from .adversary import (
 __all__ = [
     "query_llm",
     "query_llm_with_history",
+    "query_llm_with_history_stream",
     "ConversationMemory",
     "ChatMessage",
     "Retriever",

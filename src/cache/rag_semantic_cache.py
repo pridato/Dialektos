@@ -26,7 +26,7 @@ from src.cache.redis_client import get_redis
 logger = logging.getLogger(__name__)
 
 REDIS_KEY_PREFIX = "rag:cache:"
-DEFAULT_SIMILARITY_THRESHOLD = 0.92
+DEFAULT_SIMILARITY_THRESHOLD = 0.85
 DEFAULT_TTL_SECONDS = 86400  # 24 h
 
 

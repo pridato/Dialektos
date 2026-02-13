@@ -15,7 +15,8 @@ from src.bio.dao import create_or_update_biometrics
 from sqlmodel import Session, select
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from typing import Any, Dict, List, Optional
 from datetime import date, datetime, timedelta
 
@@ -99,6 +100,7 @@ class ChatRequest(BaseModel):
     prompt: str
     adversary_mode: bool = True
     session_id: Optional[str] = None  # Si se envía, se persiste memoria en Redis
+    stream: bool = False  # Si True, devuelve StreamingResponse (NDJSON)
 
 
 class ChatResponse(BaseModel):
@@ -426,46 +428,118 @@ async def save_confounders(data: ConfounderData):
             raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    """Procesa una consulta de chat usando el sistema RAG. Con session_id persiste memoria en Redis."""
+def _ensure_chat_deps(app: FastAPI) -> None:
+    """
+    Inicializa ChromaDB y caché RAG una sola vez por proceso (app.state).
+    Así la primera petición de chat no paga el coste de cargar el modelo de embeddings.
+    """
+    if getattr(app.state, "chroma_db", None) is not None:
+        return
     try:
-        from src.brain.retriever import Retriever
         from src.ingest.chroma_persistence import ChromaDBPersistence
         from src.cache.redis_client import get_redis
+        app.state.chroma_db = ChromaDBPersistence()
+        try:
+            from src.cache.rag_semantic_cache import RagSemanticCache
+            app.state.rag_semantic_cache = RagSemanticCache(
+                db=app.state.chroma_db, redis_client=get_redis()
+            )
+        except Exception:
+            app.state.rag_semantic_cache = None
+    except Exception:
+        app.state.chroma_db = None
+        app.state.rag_semantic_cache = None
 
+
+def _build_retriever(request: ChatRequest, app: FastAPI):
+    """Construye el Retriever reutilizando ChromaDB y caché de app.state cuando existan."""
+    from src.brain.retriever import Retriever
+    from src.ingest.chroma_persistence import ChromaDBPersistence
+    from src.cache.redis_client import get_redis
+
+    db = getattr(app.state, "chroma_db", None)
+    if db is None:
         db = ChromaDBPersistence()
-        semantic_cache = None
+        try:
+            from src.cache.rag_semantic_cache import RagSemanticCache
+            app.state.rag_semantic_cache = RagSemanticCache(db=db, redis_client=get_redis())
+        except Exception:
+            pass
+        app.state.chroma_db = db
+
+    semantic_cache = getattr(app.state, "rag_semantic_cache", None)
+    if semantic_cache is None:
         try:
             from src.cache.rag_semantic_cache import RagSemanticCache
             semantic_cache = RagSemanticCache(db=db, redis_client=get_redis())
+            app.state.rag_semantic_cache = semantic_cache
         except Exception:
             pass
 
-        session_memory = None
-        initial_messages: Optional[List[Dict[str, str]]] = None
-        if request.session_id:
-            try:
-                from src.cache.session_memory import RedisSessionMemory
-                session_memory = RedisSessionMemory(redis_client=get_redis())
-                initial_messages = session_memory.get(request.session_id)
-            except Exception:
-                pass
+    session_memory = None
+    initial_messages: Optional[List[Dict[str, str]]] = None
+    if request.session_id:
+        try:
+            from src.cache.session_memory import RedisSessionMemory
+            session_memory = RedisSessionMemory(redis_client=get_redis())
+            initial_messages = session_memory.get(request.session_id)
+        except Exception:
+            pass
 
-        retriever = Retriever(
-            db=db,
-            initial_messages=initial_messages,
-            semantic_cache=semantic_cache,
-        )
-        response = retriever.retrieve_and_query(
-            request.prompt,
-            adversary_mode=request.adversary_mode,
+    return Retriever(
+        db=db,
+        initial_messages=initial_messages,
+        semantic_cache=semantic_cache,
+    ), session_memory
+
+
+@app.get("/api/chat/warmup")
+async def chat_warmup(request: Request):
+    """
+    Precalienta ChromaDB y el modelo de embeddings para que la primera pregunta
+    del chat responda rápido. El frontend puede llamar a este endpoint al abrir la vista de chat.
+    """
+    _ensure_chat_deps(request.app)
+    return {"status": "ok"}
+
+
+@app.post("/api/chat")
+async def chat(chat_request: ChatRequest, request: Request):
+    """Procesa una consulta de chat usando el sistema RAG. Con stream=True devuelve NDJSON."""
+    import json
+    try:
+        retriever, session_memory = _build_retriever(chat_request, request.app)
+
+        if chat_request.stream:
+            async def ndjson_stream():
+                async for event in retriever.retrieve_and_query_stream(
+                    chat_request.prompt,
+                    adversary_mode=chat_request.adversary_mode,
+                ):
+                    yield json.dumps(event, ensure_ascii=False) + "\n"
+                if chat_request.session_id and session_memory:
+                    try:
+                        session_memory.set_messages(
+                            chat_request.session_id,
+                            retriever.memory.get_messages(),
+                        )
+                    except Exception:
+                        pass
+
+            return StreamingResponse(
+                ndjson_stream(),
+                media_type="application/x-ndjson",
+            )
+
+        response = await retriever.retrieve_and_query_async(
+            chat_request.prompt,
+            adversary_mode=chat_request.adversary_mode,
         )
 
-        if request.session_id and session_memory:
+        if chat_request.session_id and session_memory:
             try:
                 session_memory.set_messages(
-                    request.session_id,
+                    chat_request.session_id,
                     retriever.memory.get_messages(),
                 )
             except Exception:
