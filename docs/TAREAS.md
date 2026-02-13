@@ -192,7 +192,7 @@
 
 ### 3.7 Análisis de Correlación (The Data Scientist Job)
 
-- [ ] **3.7.1 Script de Análisis Semanal (`src/bio/analysis.py`)**
+- [?] **3.7.1 Script de Análisis Semanal (`src/bio/analysis.py`)**
   - **Dificultad:** EPIC
   - *Detalle:* Script que corre semanalmente y genera un reporte de correlaciones.
   - *Análisis:*
@@ -211,33 +211,40 @@
 
 *Interfaz completa para ingreso de datos fisiológicos, visualización del ICD, tracking de sesiones y análisis de correlaciones.*
 
-- [ ] **Estructura Base Streamlit con Layout Multi-Página**
+- [X] **Estructura Base Streamlit con Layout Multi-Página**
   - **Dificultad:** EASY
   - *Detalle:* Configurar Streamlit con `st.set_page_config(layout="wide")`. Crear navegación multi-página: "Chat", "ICD Dashboard", "Tracking Sesiones", "Análisis Correlaciones". Sidebar con navegación y estado actual del ICD.
+  - *Completado:* 2026-02-13. `src/ui/app.py` con radio nav en sidebar, badge ICD en sidebar, CSS custom y router de páginas.
 
-- [ ] **Página: Ingreso de Datos Fisiológicos (Suunto)**
+- [X] **Página: Ingreso de Datos Fisiológicos (Suunto)**
   - **Dificultad:** EASY
   - *Detalle:* Formulario en sidebar o página dedicada con inputs: HRV nocturna (RMSSD), % Sueño profundo, % REM, Recursos al despertar (0-100). Botón "Guardar datos del día". Validación de rangos. Mostrar baseline actual calculado.
+  - *Completado:* 2026-02-13. `src/ui/pages/data_entry.py` con formulario completo (3 secciones: Suunto, Subjetivo, Confounders), selección de fecha, carga de datos existentes y cálculo automático de métricas derivadas.
 
-- [ ] **Página: Visualización del ICD en Tiempo Real**
+- [X] **Página: Visualización del ICD en Tiempo Real**
   - **Dificultad:** MEDIUM
   - *Detalle:* Dashboard principal con: Gauge/Progress bar del ICD (0-100), desglose de componentes (HRV 40%, Sueño 30%, Recursos 30%), plan sugerido según ICD (badge con color: verde/amarillo/naranja/rojo), gráfico de tendencia últimos 7 días.
+  - *Completado:* 2026-02-13. `src/ui/pages/icd_dashboard.py` con gauge Plotly semicircular, desglose de 6 componentes con st.metric, badge de estrategia pedagógica, tendencia 7/14 días con bandas de zona y leyenda de zonas cognitivas.
 
-- [ ] **Página: Chat Principal con Modo Adaptativo**
+- [X] **Página: Chat Principal con Modo Adaptativo**
   - **Dificultad:** MEDIUM
   - *Detalle:* Input de chat con streaming de respuestas (efecto máquina de escribir). Badge visible mostrando modo actual (Socrático Hardcore/Explicativo Suave/Repaso/Recuperación) según ICD. Integración con selector de prompts dinámico del módulo 3.
+  - *Completado:* 2026-02-13. `src/ui/pages/chat.py` con badge de modo adaptativo, toggle adversario, historial en st.session_state, fuentes citadas (apuntes/web), metadata adversario e integración completa con Retriever.
 
-- [ ] **Página: Tracking de Sesiones de Estudio**
+- [X] **Página: Tracking de Sesiones de Estudio**
   - **Dificultad:** MEDIUM
   - *Detalle:* Formulario al finalizar sesión: Duración (horas), Tipo de tarea (selectbox: teoría nueva/repaso/creativo), RPE cognitivo (slider 1-10), Retención 24h (opcional, para sesiones anteriores). Tabla histórica de sesiones. Tracking pasivo automático (tiempo de sesión activa).
+  - *Completado:* 2026-02-13. `src/ui/pages/session_tracking.py` con 3 tabs (Nueva Sesión, Historial, Retención 24h), formulario completo con ICD snapshot, tabla histórica con estadísticas KPI y sistema de retención 24h para lag analysis.
 
-- [ ] **Página: Dashboard de Correlación HRV-Rendimiento**
+- [X] **Página: Dashboard de Correlación HRV-Rendimiento**
   - **Dificultad:** HARD
   - *Detalle:* Visualización con Plotly/Matplotlib: Scatter plot HRV vs Horas de estudio, HRV vs RPE cognitivo, HRV vs Retención. Mostrar coeficiente de correlación de Pearson, línea de regresión. Alerta si datos < 30 días o correlación < 0.3. Tabla de estadísticas descriptivas.
+  - *Completado:* 2026-02-13. `src/ui/pages/correlation_dashboard.py` con 6 tabs: scatter interactivos, matriz correlación Spearman, lag analysis, correlación parcial, validación pesos ICD (OLS) y divergencia objetivo-subjetivo. Integración completa con `analysis.py`.
 
-- [ ] **Componentes UI Reutilizables**
+- [X] **Componentes UI Reutilizables**
   - **Dificultad:** MEDIUM
   - *Detalle:* Crear funciones helper: `render_icd_gauge()`, `render_study_plan_badge()`, `render_correlation_chart()`. Usar `st.metric()` para KPIs. Colores consistentes según rangos de ICD.
+  - *Completado:* 2026-02-13. `src/ui/components.py` con 7 componentes: gauge ICD (Plotly), desglose componentes, badge estrategia pedagógica, tendencia ICD, correlación scatter+regresión, tabla sesiones y 4 helpers de datos. Paleta de colores global sincronizada con decision.py.
 
 ## Módulo 5: DevOps & Calidad
 

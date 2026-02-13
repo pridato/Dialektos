@@ -28,10 +28,17 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
-import pingouin as pg
 import seaborn as sns
 from scipy import stats
 from sqlmodel import Session, select
+
+# Import opcional de pingouin para correlación parcial
+try:
+    import pingouin as pg
+    HAS_PINGOUIN = True
+except ImportError:
+    HAS_PINGOUIN = False
+    pg = None
 
 from src.bio.db import get_engine
 from src.bio.models import DailyBiometrics, DailyConfounders, StudySession
@@ -479,15 +486,26 @@ def partial_correlation(
 
         # Correlación parcial
         if len(sub) >= 5 and covar_present:
-            try:
-                result = pg.partial_corr(
-                    data=sub, x=feat, y=target, covar=covar_present,
-                    method="spearman",
-                )
-                rho_partial = result["r"].values[0]
-                p_partial = result["p-val"].values[0]
-            except Exception:
-                rho_partial, p_partial = np.nan, np.nan
+            if HAS_PINGOUIN and pg is not None:
+                try:
+                    result = pg.partial_corr(
+                        data=sub, x=feat, y=target, covar=covar_present,
+                        method="spearman",
+                    )
+                    rho_partial = result["r"].values[0]
+                    p_partial = result["p-val"].values[0]
+                except Exception:
+                    rho_partial, p_partial = np.nan, np.nan
+            else:
+                # Si pingouin no está disponible, usar correlación bruta
+                # y mostrar advertencia solo una vez
+                if not hasattr(partial_correlation, '_warned'):
+                    alerts.append(
+                        "⚠️ pingouin no disponible: usando correlación bruta "
+                        "en lugar de parcial. Instala con: pip install pingouin"
+                    )
+                    partial_correlation._warned = True
+                rho_partial, p_partial = rho_raw, p_raw
         else:
             rho_partial, p_partial = rho_raw, p_raw
 
