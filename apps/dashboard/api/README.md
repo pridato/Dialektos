@@ -27,6 +27,9 @@ Asegúrate de tener configurado:
 - Variables de entorno (`.env` en la raíz del proyecto)
 - Base de datos inicializada (`python -m src.bio.db`)
 - ChromaDB configurado para RAG
+- **Redis** (opcional): para caché ICD, caché semántico RAG y memoria de sesión.
+  - Variable: `REDIS_URL` (default: `redis://localhost:6379/0`)
+  - Si Redis no está disponible, la API sigue funcionando sin caché y sin persistir sesiones
 
 ## Ejecución
 
@@ -59,7 +62,7 @@ Una vez ejecutándose, puedes acceder a:
 - `GET /api/sessions/streak` - Días con sesiones (últimos 28 días)
 
 ### Chat
-- `POST /api/chat` - Procesa consulta RAG
+- `POST /api/chat` - Procesa consulta RAG. Body: `{ "prompt": "...", "adversary_mode": true, "session_id": "opcional" }`. Si envías `session_id`, la memoria conversacional se persiste en Redis (lista `session:{id}`).
 
 ### Analíticas
 - `GET /api/analytics/correlation` - Datos para análisis de correlación

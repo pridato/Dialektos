@@ -31,6 +31,11 @@ from src.brain.memory import ConversationMemory
 from src.brain.user_profile import build_enriched_system_prompt
 from src.brain.adversary import AdversarySession, QuestionType
 
+try:
+    from src.cache.rag_semantic_cache import RagSemanticCache
+except ImportError:
+    RagSemanticCache = None  # type: ignore[misc, assignment]
+
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +197,9 @@ class Retriever:
         adversary_enabled: bool = True,
         web_search: Optional[TavilyWebSearch] = None,
         similarity_threshold: float = 0.7,
+        *,
+        initial_messages: Optional[List[Dict[str, str]]] = None,
+        semantic_cache: Optional[Any] = None,
     ) -> None:
         """
         Inicializa el Retriever con una conexión a ChromaDB y memoria.
@@ -210,15 +218,21 @@ class Retriever:
             similarity_threshold: Umbral de similitud (0-1). Si max_score
                 en ChromaDB >= threshold, se usan apuntes; si no, se
                 activa búsqueda web (default: 0.7).
+            initial_messages: Historial previo para cargar en memoria
+                (ej. desde Redis). Lista de {"role": "user"|"assistant", "content": "..."}.
+            semantic_cache: Instancia de RagSemanticCache para cacheo por similitud.
         """
         self.db: ChromaDBPersistence = db or ChromaDBPersistence()
         self.memory: ConversationMemory = ConversationMemory(
             max_turns=max_turns,
         )
+        if initial_messages:
+            self.memory.load_messages(initial_messages)
         self.adversary_enabled: bool = adversary_enabled
         self.adversary_session: AdversarySession = AdversarySession()
         self.web_search: TavilyWebSearch = web_search or TavilyWebSearch()
         self.similarity_threshold: float = similarity_threshold
+        self.semantic_cache: Optional[Any] = semantic_cache
         logger.info(
             f"Retriever inicializado con memoria conversacional "
             f"(adversario: {'activado' if adversary_enabled else 'desactivado'}, "
@@ -386,6 +400,19 @@ class Retriever:
         """
         if not pregunta or not pregunta.strip():
             raise ValueError("La pregunta no puede estar vacía.")
+
+        # ── 0b. Caché semántico (si está configurado) ─────────────────────
+        if self.semantic_cache:
+            cached = self.semantic_cache.get(pregunta.strip())
+            if cached:
+                try:
+                    response = RAGResponse.model_validate(cached)
+                    self.memory.add_user_message(pregunta)
+                    self.memory.add_assistant_message(response.answer)
+                    logger.info("RAG cache hit (semantic similarity)")
+                    return response
+                except Exception as e:
+                    logger.debug("RAG cache hit but invalid payload: %s", e)
 
         # Determinar si el modo adversario está activo para esta consulta
         use_adversary: bool = (
@@ -638,6 +665,16 @@ class Retriever:
             f"  RAG completado: {n_context_sources} fuentes ({source_type}), "
             f"{score_info}, memoria={len(self.memory)} turnos"
         )
+
+        # Guardar en caché semántico para futuras preguntas similares
+        if self.semantic_cache:
+            try:
+                self.semantic_cache.set(
+                    pregunta.strip(),
+                    response.model_dump(mode="json"),
+                )
+            except Exception as e:
+                logger.debug("RAG semantic cache set failed: %s", e)
 
         return response
 

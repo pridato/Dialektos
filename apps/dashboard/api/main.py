@@ -98,6 +98,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     prompt: str
     adversary_mode: bool = True
+    session_id: Optional[str] = None  # Si se envía, se persiste memoria en Redis
 
 
 class ChatResponse(BaseModel):
@@ -134,26 +135,47 @@ async def root():
     return {"message": "Dialektos API", "status": "ok"}
 
 
+# Cache-aside: clave y TTL para ICD del día
+ICD_CACHE_KEY = "api:icd:today"
+ICD_CACHE_TTL_SECONDS = 300  # 5 minutos
+
+
+def _icd_response_to_dict(resp: ICDResponse) -> Dict[str, Any]:
+    return resp.model_dump()
+
+
 @app.get("/api/icd/today", response_model=ICDResponse)
 async def get_today_icd():
-    """Obtiene el ICD del día actual."""
+    """Obtiene el ICD del día actual (cache-aside con Redis)."""
+    import json
+    from src.cache.redis_client import get_redis
+
+    r = get_redis(use_async=True)
+    try:
+        cached_icd = await r.get(ICD_CACHE_KEY)
+        if cached_icd:
+            return ICDResponse(**json.loads(cached_icd))
+    except Exception:
+        pass
+
     engine = get_engine()
-    with Session(engine) as session:
+    with Session(engine) as db_session:
         today = date.today()
         stmt = select(DailyBiometrics).where(DailyBiometrics.date == today)
-        record = session.exec(stmt).first()
+        record = db_session.exec(stmt).first()
 
         if record is None or record.icd_score is None:
-            return ICDResponse(
+            out = ICDResponse(
                 icd_score=None,
                 zone=None,
                 zone_label=None,
                 zone_color=None,
                 strategy=None,
             )
+            return out
 
         strategy = get_strategy(record.icd_score)
-        return ICDResponse(
+        out = ICDResponse(
             icd_score=record.icd_score,
             zone=strategy.zone.value,
             zone_label=strategy.name,
@@ -167,6 +189,15 @@ async def get_today_icd():
                 "recommended_tasks": [t.value for t in strategy.recommended_tasks],
             },
         )
+        try:
+            await r.setex(
+                ICD_CACHE_KEY,
+                ICD_CACHE_TTL_SECONDS,
+                json.dumps(_icd_response_to_dict(out)),
+            )
+        except Exception:
+            pass
+        return out
 
 
 @app.get("/api/biometrics/today")
@@ -334,13 +365,21 @@ async def save_study_session(data: StudySessionCreate):
 
 @app.post("/api/biometrics")
 async def save_biometrics(data: BiometricData):
-    """Guarda o actualiza datos biométricos para una fecha."""
+    """Guarda o actualiza datos biométricos para una fecha. Invalida caché ICD del día."""
     engine = get_engine()
     with Session(engine) as session:
         try:
             bio_dict = data.model_dump()
             record = create_or_update_biometrics(session, bio_dict)
             session.commit()
+
+            # Invalidar caché ICD para que la próxima lectura refleje los nuevos datos
+            try:
+                from src.cache.redis_client import get_redis
+                r = get_redis(use_async=True)
+                await r.delete(ICD_CACHE_KEY)
+            except Exception:
+                pass
 
             strategy = None
             if record.icd_score is not None:
@@ -389,15 +428,48 @@ async def save_confounders(data: ConfounderData):
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """Procesa una consulta de chat usando el sistema RAG."""
+    """Procesa una consulta de chat usando el sistema RAG. Con session_id persiste memoria en Redis."""
     try:
         from src.brain.retriever import Retriever
+        from src.ingest.chroma_persistence import ChromaDBPersistence
+        from src.cache.redis_client import get_redis
 
-        retriever = Retriever()
+        db = ChromaDBPersistence()
+        semantic_cache = None
+        try:
+            from src.cache.rag_semantic_cache import RagSemanticCache
+            semantic_cache = RagSemanticCache(db=db, redis_client=get_redis())
+        except Exception:
+            pass
+
+        session_memory = None
+        initial_messages: Optional[List[Dict[str, str]]] = None
+        if request.session_id:
+            try:
+                from src.cache.session_memory import RedisSessionMemory
+                session_memory = RedisSessionMemory(redis_client=get_redis())
+                initial_messages = session_memory.get(request.session_id)
+            except Exception:
+                pass
+
+        retriever = Retriever(
+            db=db,
+            initial_messages=initial_messages,
+            semantic_cache=semantic_cache,
+        )
         response = retriever.retrieve_and_query(
             request.prompt,
             adversary_mode=request.adversary_mode,
         )
+
+        if request.session_id and session_memory:
+            try:
+                session_memory.set_messages(
+                    request.session_id,
+                    retriever.memory.get_messages(),
+                )
+            except Exception:
+                pass
 
         sources_data = []
         if response.source_type == "notes" and response.sources:

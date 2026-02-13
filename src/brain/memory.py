@@ -125,6 +125,24 @@ class ConversationMemory:
 
     # ── Utilidades ───────────────────────────────────────────
 
+    def load_messages(self, messages: List[Dict[str, str]]) -> None:
+        """
+        Carga un historial existente (ej. desde Redis).
+        Reemplaza el contenido actual. Cada elemento debe tener
+        ``role`` (user/assistant) y ``content``.
+        """
+        self._messages.clear()
+        for m in messages:
+            role = (m.get("role") or "user").lower()
+            content = m.get("content") or ""
+            if role == "user":
+                self._messages.append(ChatMessage(role="user", content=content))
+            elif role == "assistant":
+                self._messages.append(
+                    ChatMessage(role="assistant", content=content)
+                )
+        self._trim()
+
     def clear(self) -> None:
         """Limpia todo el historial de la conversación."""
         self._messages.clear()
