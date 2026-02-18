@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, Home, MessageSquare, Activity, BarChart3, User, Settings, TrendingUp, TrendingDown, Brain, Battery, Moon, Heart, Zap, Target, Send, Sparkles } from 'lucide-react'
+import { Menu, Home, MessageSquare, Activity, BarChart3, User, Settings, TrendingUp, TrendingDown, Brain, Battery, Moon, Heart, Zap, Target, Send, Sparkles, Network } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,8 +27,9 @@ import { useChat } from '@/hooks/use-chat'
 import { api } from '@/lib/api'
 import MarkdownRenderer from '@/components/markdown-renderer'
 import type { StudySessionRecord } from '@/lib/session-types'
+import { MindMapView, type MindMapViewHandle } from '@/components/mind-map-view'
 
-type View = 'dashboard' | 'chat' | 'biotracker' | 'analytics' | 'session'
+type View = 'dashboard' | 'chat' | 'biotracker' | 'analytics' | 'session' | 'mindmap'
 
 export default function Page() {
   const [currentView, setCurrentView] = useState<View>('dashboard')
@@ -71,6 +72,8 @@ export default function Page() {
   // Si no hay datos de hoy, abrir automáticamente Bio-Tracker (solo una vez por carga)
   const hasAutoOpenedBiotracker = useRef(false)
   const chatMessagesEndRef = useRef<HTMLDivElement>(null)
+  const mindMapRef = useRef<MindMapViewHandle>(null)
+  const [mindMapText, setMindMapText] = useState('')
   useEffect(() => {
     if (bioLoading || hasAutoOpenedBiotracker.current) return
     if (!hasTodayData) {
@@ -145,7 +148,7 @@ export default function Page() {
   const navItemClass = (view: View) =>
     `justify-start transition-all duration-300 rounded-xl pl-3 ${
       currentView === view
-        ? 'bg-primary/10 text-foreground font-semibold border-l-4 border-l-accent border border-border dark:border-white/10'
+        ? 'bg-primary/10 text-foreground font-semibold border-l-4 border-l-accent border border-slate-800 dark:border-white/10'
         : 'text-muted-foreground dark:text-slate-400 hover:text-foreground hover:bg-muted/50 dark:hover:bg-white/5'
     }`
 
@@ -197,6 +200,17 @@ export default function Page() {
       </Button>
       <Button
         variant="ghost"
+        className={navItemClass('mindmap')}
+        onClick={() => {
+          setCurrentView('mindmap')
+          if (mobile) setMobileMenuOpen(false)
+        }}
+      >
+        <Network className="mr-2 h-4 w-4" />
+        Mapa mental
+      </Button>
+      <Button
+        variant="ghost"
         className={navItemClass('session')}
         onClick={() => {
           setCurrentView('session')
@@ -212,12 +226,12 @@ export default function Page() {
   return (
     <div className="flex h-screen overflow-hidden bg-background app-bg">
       {/* Desktop Sidebar — Glassmorphism + indicador activo */}
-      <aside className="hidden lg:flex w-64 flex-col border-r border-border dark:border-white/10 bg-card/80 dark:bg-slate-900/50 backdrop-blur-md shadow-lg dark:shadow-blue-900/10">
-        <div className="p-6 border-b border-border dark:border-white/10">
-          <h1 className="text-2xl font-bold text-foreground">Dialektos</h1>
-          <p className="text-sm text-muted-foreground dark:text-slate-400 mt-1 leading-relaxed">Sistema RAG Adaptativo</p>
+      <aside className="hidden lg:flex w-64 flex-col border-r border-slate-800 dark:border-white/10 bg-card/80 dark:bg-slate-900/50 backdrop-blur-xl shadow-lg dark:shadow-black/20 transition-all duration-300">
+        <div className="p-6 border-b border-slate-800 dark:border-white/10">
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Dialektos</h1>
+          <p className="text-sm text-muted-foreground mt-1 leading-relaxed">Sistema RAG Adaptativo</p>
         </div>
-        <div className="p-4 border-b border-border dark:border-white/10">
+        <div className="p-4 border-b border-slate-800 dark:border-white/10">
           {icdLoading ? (
             <div className="text-sm text-muted-foreground">Cargando ICD...</div>
           ) : icdScore !== null ? (
@@ -246,7 +260,7 @@ export default function Page() {
         <div className="flex-1 p-4">
           <NavLinks />
         </div>
-        <div className="p-4 border-t border-border dark:border-white/10 space-y-2">
+        <div className="p-4 border-t border-slate-800 dark:border-white/10 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground">Tema</span>
             <ThemeToggle />
@@ -263,7 +277,7 @@ export default function Page() {
       </aside>
 
       {/* Mobile Header — Glassmorphism */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-background/80 dark:bg-slate-900/50 backdrop-blur-md border-b border-border dark:border-white/10 p-4 flex items-center justify-between shadow-lg shadow-blue-900/10">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-background/80 dark:bg-slate-900/50 backdrop-blur-xl border-b border-slate-800 dark:border-white/10 p-4 flex items-center justify-between shadow-lg dark:shadow-black/20">
         <h1 className="text-xl font-bold">Dialektos</h1>
         <div className="flex items-center gap-1">
           <ThemeToggle />
@@ -339,13 +353,13 @@ export default function Page() {
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h2 className="text-3xl font-bold text-balance text-foreground">Panel de Control</h2>
-                  <p className="text-slate-400 mt-1 leading-relaxed">Tu cockpit cognitivo personalizado</p>
+                  <h2 className="text-3xl font-bold text-balance text-foreground tracking-tight">Panel de Control</h2>
+                  <p className="text-muted-foreground mt-1 leading-relaxed">Tu cockpit cognitivo personalizado</p>
                 </div>
                 <Button
                   onClick={() => setCurrentView('chat')}
                   size="lg"
-                  className="bg-[hsl(var(--deep-work))] hover:brightness-110 text-white rounded-full shadow-lg shrink-0 gap-2 border-0"
+                  className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl shadow-lg shrink-0 gap-2 border-0 transition-all duration-300"
                 >
                   <MessageSquare className="h-5 w-5" />
                   Ir al Chat
@@ -367,8 +381,8 @@ export default function Page() {
                         <svg className="w-40 h-40 lg:w-48 lg:h-48" viewBox="0 0 200 200">
                           <defs>
                             <linearGradient id="icdRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                              <stop offset="0%" stopColor="hsl(142, 76%, 36%)" />
-                              <stop offset="100%" stopColor="hsl(217, 91%, 60%)" />
+                              <stop offset="0%" stopColor="hsl(160, 84%, 39%)" />
+                              <stop offset="100%" stopColor="hsl(239, 84%, 67%)" />
                             </linearGradient>
                           </defs>
                           <circle
@@ -414,7 +428,7 @@ export default function Page() {
                           </Badge>
                         </div>
                         {icd?.strategy && (
-                          <Card className="bg-secondary/50 rounded-2xl">
+                          <Card className="bg-secondary/50 dark:bg-slate-800/50 rounded-2xl border-slate-800 dark:border-white/10">
                             <CardHeader className="pb-3">
                               <CardTitle className="text-lg font-semibold">Estrategia Actual</CardTitle>
                             </CardHeader>
@@ -431,7 +445,7 @@ export default function Page() {
                   </CardContent>
                 </Card>
               ) : (
-                <Card>
+                <Card className="border border-slate-800 dark:border-white/10 rounded-2xl bg-slate-900/50 dark:bg-slate-900/50">
                   <CardContent className="p-6 lg:p-8">
                     <div className="text-center py-8">
                       <p className="text-muted-foreground mb-4">Sin datos de ICD para hoy</p>
@@ -444,7 +458,7 @@ export default function Page() {
               {/* Biometrics Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {!hasTodayData ? (
-                  <Card className="md:col-span-2 lg:col-span-4">
+                  <Card className="md:col-span-2 lg:col-span-4 rounded-2xl border-slate-800 dark:border-white/10 bg-slate-900/50">
                     <CardContent className="p-6 flex flex-col items-center justify-center gap-4">
                       <p className="text-muted-foreground text-center mb-0">
                         Sin datos biométricos para hoy
@@ -461,7 +475,7 @@ export default function Page() {
                   </Card>
                 ) : (
                   <>
-                    <Card className="transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
+                    <Card className="transition-all duration-300 hover:shadow-xl hover:border-white/15">
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-sm font-semibold text-foreground">VFC (lnRMSSD)</CardTitle>
@@ -483,7 +497,7 @@ export default function Page() {
                       </CardContent>
                     </Card>
 
-                    <Card className="transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
+                    <Card className="transition-all duration-300 hover:shadow-xl hover:border-white/15">
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-sm font-semibold text-foreground">Calidad de Sueño</CardTitle>
@@ -496,7 +510,7 @@ export default function Page() {
                       </CardContent>
                     </Card>
 
-                    <Card className="transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
+                    <Card className="transition-all duration-300 hover:shadow-xl hover:border-white/15">
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-sm font-semibold text-foreground">Batería Corporal</CardTitle>
@@ -509,7 +523,7 @@ export default function Page() {
                       </CardContent>
                     </Card>
 
-                    <Card className="transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
+                    <Card className="transition-all duration-300 hover:shadow-xl hover:border-white/15">
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-sm font-semibold text-foreground">Estado Recuperación</CardTitle>
@@ -526,7 +540,7 @@ export default function Page() {
 
               {/* Desglose de sueño (total, profundo, REM, ligero) en horas-min */}
               {hasSleepBreakdown && (
-                <Card className="transition-all duration-300 hover:shadow-xl hover:shadow-blue-900/20">
+                <Card className="transition-all duration-300 hover:shadow-xl hover:border-white/15">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-sm font-semibold text-foreground">Desglose de sueño</CardTitle>
@@ -565,10 +579,10 @@ export default function Page() {
               )}
 
               {/* Study Streak */}
-              <Card>
+              <Card className="rounded-2xl border-slate-800 dark:border-white/10">
                 <CardHeader>
-                  <CardTitle className="font-semibold">Racha de Estudio</CardTitle>
-                  <CardDescription className="text-slate-400">Últimos 28 días</CardDescription>
+                  <CardTitle className="font-semibold text-foreground">Racha de Estudio</CardTitle>
+                  <CardDescription className="text-muted-foreground">Últimos 28 días</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-7 gap-2">
@@ -595,23 +609,65 @@ export default function Page() {
             </div>
           )}
 
+          {/* Mapa mental — texto → grafo de conceptos */}
+          {currentView === 'mindmap' && (
+            <div className="space-y-6 flex flex-col flex-1 min-h-0">
+              <div>
+                <h2 className="text-3xl font-bold text-balance text-foreground tracking-tight">Mapa mental</h2>
+                <p className="text-muted-foreground mt-1">Pega un texto (apuntes, tema) y genera un grafo de conceptos. Haz clic en un nodo para preguntar sobre ese concepto en el chat.</p>
+              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Texto para analizar</CardTitle>
+                  <CardDescription>Introduce o pega el contenido del que quieres extraer conceptos y relaciones.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Textarea
+                    placeholder="Pega aquí un fragmento de apuntes, un tema o un capítulo..."
+                    value={mindMapText}
+                    onChange={(e) => setMindMapText(e.target.value)}
+                    className="min-h-[120px] resize-y"
+                  />
+                  <Button
+                    onClick={() => mindMapRef.current?.generateMindmap(mindMapText)}
+                    disabled={!mindMapText.trim()}
+                    className="gap-2"
+                  >
+                    <Network className="h-4 w-4" />
+                    Generar mapa mental
+                  </Button>
+                </CardContent>
+              </Card>
+              <div className="flex-1 min-h-[400px] flex flex-col">
+                <MindMapView
+                  ref={mindMapRef}
+                  className="flex-1 min-h-[400px]"
+                  onConceptSelect={(_, label) => {
+                    setCurrentView('chat')
+                    setChatInput(`Explica este concepto: ${label}`)
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Chat View — estilo ChatGPT + UI Uber */}
           {currentView === 'chat' && (
             <div
-              className="chat-uber flex flex-col flex-1 min-h-0 rounded-2xl overflow-hidden border border-border dark:border-white/10 backdrop-blur-md shadow-lg dark:shadow-blue-900/20 transition-all duration-300"
+              className="chat-uber flex flex-col flex-1 min-h-0 rounded-2xl overflow-hidden border border-slate-800 dark:border-white/10 backdrop-blur-xl shadow-lg dark:shadow-black/20 transition-all duration-300"
               style={{
                 backgroundColor: 'hsl(var(--chat-bg))',
                 borderColor: 'hsl(var(--chat-border))',
               }}
             >
               {/* Barra superior mínima tipo Uber */}
-              <header className="flex-shrink-0 flex items-center justify-between px-4 lg:px-6 py-3 border-b border-[hsl(var(--chat-border))]">
+              <header className="flex-shrink-0 flex items-center justify-between px-4 lg:px-6 py-3 border-b border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))]/80 backdrop-blur-xl">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[hsl(var(--chat-uber-green))] flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-xl bg-[hsl(var(--chat-accent))] flex items-center justify-center shadow-lg ring-1 ring-white/10">
                     <Sparkles className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-base font-semibold text-foreground">Chat Socrático</h2>
+                    <h2 className="text-base font-semibold text-foreground tracking-tight">Chat Socrático</h2>
                     <p className="text-xs text-muted-foreground">Aprende con preguntas guiadas</p>
                   </div>
                 </div>
@@ -621,14 +677,14 @@ export default function Page() {
                     id="socratic-mode"
                     checked={socraticMode}
                     onCheckedChange={setSocraticMode}
-                    className="data-[state=checked]:bg-[hsl(var(--chat-uber-green))]"
+                    className="data-[state=checked]:bg-[hsl(var(--chat-accent))] transition-colors duration-300"
                   />
                 </div>
               </header>
 
               {/* Área de mensajes — scroll central tipo ChatGPT */}
               <ScrollArea className="flex-1 min-h-0">
-                <div className="max-w-3xl mx-auto px-4 py-6 lg:px-6 space-y-6">
+                <div className="max-w-3xl mx-auto px-4 py-6 lg:px-6 space-y-8">
                   {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-16 lg:py-24 text-center">
                       <div className="w-14 h-14 rounded-2xl bg-[hsl(var(--chat-surface))] border border-[hsl(var(--chat-border))] flex items-center justify-center mb-5">
@@ -644,7 +700,7 @@ export default function Page() {
                             key={i}
                             type="button"
                             onClick={() => setChatInput(label)}
-                            className="px-4 py-2.5 rounded-full text-sm text-muted-foreground bg-[hsl(var(--chat-surface))] border border-[hsl(var(--chat-border))] hover:bg-[hsl(var(--chat-input-bg))] hover:border-border hover:text-foreground transition-all duration-300 hover:shadow-md"
+                            className="px-4 py-2.5 rounded-xl text-sm text-muted-foreground bg-[hsl(var(--chat-surface))] border border-[hsl(var(--chat-border))] hover:bg-[hsl(var(--chat-input-bg))] hover:border-[hsl(var(--chat-accent))]/40 hover:text-foreground transition-all duration-300 hover:shadow-md"
                           >
                             {label}
                           </button>
@@ -660,14 +716,14 @@ export default function Page() {
                       className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} transition-opacity duration-300`}
                     >
                       {msg.role === 'ai' && (
-                        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[hsl(var(--chat-uber-green))] flex items-center justify-center shadow-lg ring-2 ring-border dark:ring-white/10">
+                        <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[hsl(var(--chat-accent))] flex items-center justify-center shadow-lg ring-1 ring-white/10">
                           <Brain className="h-4 w-4 text-white" />
                         </div>
                       )}
                       <div
-                        className={`max-w-[85%] rounded-2xl px-4 py-3 transition-all duration-300 ${isStreamingBubble ? 'min-h-[2.5rem]' : ''} ${
+                        className={`max-w-[85%] rounded-2xl px-5 py-3.5 transition-all duration-300 ${isStreamingBubble ? 'min-h-[2.5rem]' : ''} ${
                           msg.role === 'user'
-                            ? 'bg-[hsl(var(--chat-uber-green))] text-white rounded-br-md shadow-lg shadow-black/20'
+                            ? 'bg-[hsl(var(--chat-bubble-user))] text-white rounded-br-md shadow-lg shadow-black/15'
                             : 'bg-[hsl(var(--chat-bubble-ai))] text-foreground border border-[hsl(var(--chat-border))] rounded-bl-md backdrop-blur-sm'
                         }`}
                       >
@@ -704,10 +760,10 @@ export default function Page() {
                   <div ref={chatMessagesEndRef} />
                   {chatLoading && messages[messages.length - 1]?.role !== 'ai' && (
                     <div className="flex gap-3 justify-start">
-                      <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[hsl(var(--chat-uber-green))] flex items-center justify-center shadow-lg ring-2 ring-border dark:ring-white/10 animate-pulse">
+                      <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-[hsl(var(--chat-accent))] flex items-center justify-center shadow-lg ring-1 ring-white/10 animate-pulse">
                         <Brain className="h-4 w-4 text-white" />
                       </div>
-                      <div className="rounded-2xl rounded-bl-md px-4 py-3 bg-[hsl(var(--chat-bubble-ai))] border border-[hsl(var(--chat-border))] backdrop-blur-sm">
+                      <div className="rounded-2xl rounded-bl-md px-5 py-3.5 bg-[hsl(var(--chat-bubble-ai))] border border-[hsl(var(--chat-border))] backdrop-blur-sm">
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <span className="inline-flex gap-1">
                             <span className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce [animation-delay:0ms]" />
@@ -722,11 +778,11 @@ export default function Page() {
                 </div>
               </ScrollArea>
 
-              {/* Input fijo abajo tipo ChatGPT/Uber */}
-              <div className="flex-shrink-0 p-4 border-t border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))]">
+              {/* Input fijo abajo — cápsula con glassmorphism */}
+              <div className="flex-shrink-0 p-4 border-t border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-bg))]/80 backdrop-blur-xl">
                 <div className="max-w-3xl mx-auto">
                   <div
-                    className="flex items-end gap-2 rounded-2xl border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-input-bg))] p-2 focus-within:border-[hsl(var(--chat-uber-green))] focus-within:ring-1 focus-within:ring-[hsl(var(--chat-uber-green))]/30 transition-all duration-300"
+                    className="flex items-end gap-2 rounded-2xl border border-[hsl(var(--chat-border))] bg-[hsl(var(--chat-input-bg))]/90 dark:bg-slate-900/60 backdrop-blur-xl p-2.5 focus-within:border-[hsl(var(--chat-accent))] focus-within:ring-1 focus-within:ring-[hsl(var(--chat-accent))]/30 transition-all duration-300 shadow-lg dark:shadow-black/20"
                   >
                     <Textarea
                       placeholder="Escribe tu pregunta..."
@@ -745,7 +801,7 @@ export default function Page() {
                     />
                     <Button
                       size="icon"
-                      className="flex-shrink-0 w-10 h-10 rounded-xl bg-[hsl(var(--chat-uber-green))] hover:opacity-90 text-white"
+                      className="flex-shrink-0 w-10 h-10 rounded-xl bg-[hsl(var(--chat-accent))] hover:bg-[hsl(var(--chat-accent))]/90 text-white transition-all duration-300"
                       onClick={() => {
                         if (chatInput.trim()) {
                           sendMessage(chatInput, socraticMode)
@@ -777,8 +833,8 @@ export default function Page() {
           {currentView === 'biotracker' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-3xl font-bold text-balance text-foreground">Bio-Tracker</h2>
-                <p className="text-slate-400 mt-1 leading-relaxed">Registra tus datos diarios: sueño, corazón y recursos</p>
+                <h2 className="text-3xl font-bold text-balance text-foreground tracking-tight">Bio-Tracker</h2>
+                <p className="text-muted-foreground mt-1 leading-relaxed">Registra tus datos diarios: sueño, corazón y recursos</p>
               </div>
 
               <Tabs defaultValue="manual" className="w-full">
@@ -950,8 +1006,8 @@ export default function Page() {
           {currentView === 'analytics' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-3xl font-bold text-balance text-foreground">Analíticas</h2>
-                <p className="text-slate-400 mt-1 leading-relaxed">Correlaciones y patrones de rendimiento</p>
+                <h2 className="text-3xl font-bold text-balance text-foreground tracking-tight">Analíticas</h2>
+                <p className="text-muted-foreground mt-1 leading-relaxed">Correlaciones y patrones de rendimiento</p>
               </div>
 
               <Card>

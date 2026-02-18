@@ -237,28 +237,29 @@ export function BiometricInputManual({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-foreground">Sincronización Matutina</h2>
+        <h2 className="text-xl font-semibold text-foreground tracking-tight">Sincronización Matutina</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
           Paso {step} de 4 — {STEPS[step - 1].title}
         </p>
       </div>
 
-      {/* Indicador de pasos */}
-      <div className="flex gap-2">
+      {/* Indicador de pasos — tarjetas con profundidad y acento */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {STEPS.map((s) => (
           <button
             key={s.id}
             type="button"
             onClick={() => setStep(s.id)}
             className={cn(
-              'flex-1 rounded-xl py-2 px-3 text-center transition-all',
+              'flex flex-col items-center gap-1.5 rounded-2xl py-4 px-3 text-center transition-all duration-300 border',
               step === s.id
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                ? 'bg-slate-800/80 dark:bg-slate-800/80 border-accent/50 dark:border-white/20 shadow-lg shadow-accent/10 text-foreground'
+                : 'bg-slate-900/50 dark:bg-slate-900/50 border-slate-800 dark:border-white/10 text-muted-foreground hover:border-slate-700 hover:bg-slate-800/50 dark:hover:border-white/15 dark:hover:bg-slate-800/40'
             )}
           >
-            <s.icon className="h-4 w-4 mx-auto mb-0.5 block" />
-            <span className="text-xs font-medium">{s.title}</span>
+            <s.icon className="h-6 w-6 shrink-0" />
+            <span className="text-sm font-semibold leading-tight">{s.title}</span>
+            <span className="text-xs opacity-80 hidden sm:block">{s.subtitle}</span>
           </button>
         ))}
       </div>
@@ -266,7 +267,7 @@ export function BiometricInputManual({
       {/* Paso 1: Sueño */}
       {step === 1 && (
         <div className="space-y-6">
-          <div className="bg-card rounded-2xl border border-border p-4 lg:p-5 shadow-sm">
+          <div className="bg-slate-900/50 dark:bg-slate-900/50 rounded-2xl border border-slate-800 dark:border-white/10 p-4 lg:p-5 shadow-sm backdrop-blur-sm transition-all duration-300">
             <Label className="text-sm text-muted-foreground">Calidad del sueño</Label>
             <div className="flex items-center gap-4 mt-2">
               <span
@@ -291,7 +292,7 @@ export function BiometricInputManual({
             </div>
           </div>
 
-          <div className="bg-card rounded-2xl border border-border p-4 lg:p-5 shadow-sm">
+          <div className="bg-slate-900/50 dark:bg-slate-900/50 rounded-2xl border border-slate-800 dark:border-white/10 p-4 lg:p-5 shadow-sm backdrop-blur-sm transition-all duration-300">
             <Label className="text-sm text-muted-foreground">Horas de sueño</Label>
             <p className="text-xs text-muted-foreground mt-0.5">Me acosté a las… / Me levanté a las…</p>
             <div className="grid grid-cols-2 gap-4 mt-3">
@@ -321,7 +322,7 @@ export function BiometricInputManual({
             </p>
           </div>
 
-          <Accordion type="single" collapsible className="border border-border rounded-2xl overflow-hidden bg-card">
+          <Accordion type="single" collapsible className="border border-slate-800 dark:border-white/10 rounded-2xl overflow-hidden bg-slate-900/50 dark:bg-slate-900/50 backdrop-blur-sm">
             <AccordionItem value="advanced" className="border-0">
               <AccordionTrigger className="px-4 py-3 text-sm text-muted-foreground hover:text-foreground">
                 Datos avanzados (opcional): profundo / REM / ligero
@@ -395,7 +396,7 @@ export function BiometricInputManual({
       {/* Paso 2: Corazón */}
       {step === 2 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+          <div className="bg-slate-900/50 dark:bg-slate-900/50 rounded-2xl border border-slate-800 dark:border-white/10 p-5 shadow-sm backdrop-blur-sm">
             <Stepper
               label="VFC (RMSSD)"
               unit="ms"
@@ -406,7 +407,7 @@ export function BiometricInputManual({
               step={1}
             />
           </div>
-          <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+          <div className="bg-slate-900/50 dark:bg-slate-900/50 rounded-2xl border border-slate-800 dark:border-white/10 p-5 shadow-sm backdrop-blur-sm">
             <Stepper
               label="FC mínima diurna"
               unit="bpm"
@@ -423,7 +424,7 @@ export function BiometricInputManual({
       {/* Paso 3: Recursos */}
       {step === 3 && (
         <div className="space-y-6">
-          <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+          <div className="bg-slate-900/50 dark:bg-slate-900/50 rounded-2xl border border-slate-800 dark:border-white/10 p-5 shadow-sm backdrop-blur-sm">
             <Label className="text-sm text-muted-foreground">Batería corporal (recursos)</Label>
             <div className="flex items-center gap-4 mt-3">
               <Zap className="h-8 w-8 text-amber-500 shrink-0" />
@@ -444,7 +445,7 @@ export function BiometricInputManual({
             </div>
           </div>
 
-          <div className="bg-card rounded-2xl border border-border p-5 shadow-sm">
+          <div className="bg-slate-900/50 dark:bg-slate-900/50 rounded-2xl border border-slate-800 dark:border-white/10 p-5 shadow-sm backdrop-blur-sm">
             <Label className="text-sm text-muted-foreground">Carga de entrenamiento</Label>
             <p className="text-xs text-muted-foreground mt-0.5">Puede ser negativa (recuperación)</p>
             <div className="flex items-center gap-3 mt-3">
@@ -468,7 +469,7 @@ export function BiometricInputManual({
         <div className="space-y-6">
           {/* Grid 2x2: sliders compactos */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+            <div className="bg-white dark:bg-slate-900/50 rounded-3xl shadow-sm border border-slate-200 dark:border-white/10 p-4 backdrop-blur-sm">
               <Label className="text-sm font-medium text-foreground">Nivel de Energía</Label>
               <div className="flex items-center gap-3 mt-2">
                 <Slider
@@ -482,7 +483,7 @@ export function BiometricInputManual({
                 <span className="text-sm font-semibold tabular-nums min-w-[3rem] text-right">{form.energy_level}/10</span>
               </div>
             </div>
-            <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+            <div className="bg-white dark:bg-slate-900/50 rounded-3xl shadow-sm border border-slate-200 dark:border-white/10 p-4 backdrop-blur-sm">
               <Label className="text-sm font-medium text-foreground">Claridad Mental</Label>
               <div className="flex items-center gap-3 mt-2">
                 <Slider
@@ -496,7 +497,7 @@ export function BiometricInputManual({
                 <span className="text-sm font-semibold tabular-nums min-w-[3rem] text-right">{form.mental_clarity}/10</span>
               </div>
             </div>
-            <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+            <div className="bg-white dark:bg-slate-900/50 rounded-3xl shadow-sm border border-slate-200 dark:border-white/10 p-4 backdrop-blur-sm">
               <Label className="text-sm font-medium text-foreground">Motivación</Label>
               <div className="flex items-center gap-3 mt-2">
                 <Slider
@@ -510,7 +511,7 @@ export function BiometricInputManual({
                 <span className="text-sm font-semibold tabular-nums min-w-[3rem] text-right">{form.motivation}/10</span>
               </div>
             </div>
-            <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+            <div className="bg-white dark:bg-slate-900/50 rounded-3xl shadow-sm border border-slate-200 dark:border-white/10 p-4 backdrop-blur-sm">
               <Label className="text-sm font-medium text-foreground">Dolor Muscular</Label>
               <div className="flex items-center gap-3 mt-2">
                 <Slider
@@ -527,7 +528,7 @@ export function BiometricInputManual({
           </div>
 
           {/* Estado de ánimo: 5 botones con iconos */}
-          <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+          <div className="bg-white dark:bg-slate-900/50 rounded-3xl shadow-sm border border-slate-200 dark:border-white/10 p-4 backdrop-blur-sm">
             <Label className="text-sm font-medium text-foreground block mb-3">Estado de ánimo</Label>
             <div className="flex flex-wrap gap-2">
               {MOOD_OPTIONS.map((opt) => {
@@ -542,7 +543,7 @@ export function BiometricInputManual({
                       'flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all border',
                       isSelected
                         ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800 ring-2 ring-indigo-200 dark:ring-indigo-700 ring-offset-2 dark:ring-offset-background text-indigo-700 dark:text-indigo-300'
-                        : 'bg-slate-50 dark:bg-muted/50 border-slate-200 dark:border-border text-muted-foreground hover:border-slate-300 dark:hover:border-border hover:text-foreground'
+                        : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-white/10 text-muted-foreground hover:border-slate-300 dark:hover:border-white/15 hover:text-foreground'
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
@@ -554,7 +555,7 @@ export function BiometricInputManual({
           </div>
 
           {/* Notas */}
-          <div className="bg-white dark:bg-card rounded-3xl shadow-sm border border-slate-100 dark:border-border p-4">
+          <div className="bg-white dark:bg-slate-900/50 rounded-3xl shadow-sm border border-slate-200 dark:border-white/10 p-4 backdrop-blur-sm">
             <Label htmlFor="notes-perception" className="text-sm font-medium text-foreground block mb-2">
               Notas
             </Label>
@@ -564,7 +565,7 @@ export function BiometricInputManual({
               value={form.notes}
               onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
               rows={3}
-              className="resize-none rounded-xl border-slate-200 dark:border-border bg-white dark:bg-background focus-visible:ring-indigo-500"
+              className="resize-none rounded-xl border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/50 focus-visible:ring-accent"
             />
           </div>
 

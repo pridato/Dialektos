@@ -2,48 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: system-ui, -apple-system, sans-serif;
-}
-
-/* ========== Premium Health & Knowledge — Rich Dark Theme ========== */
-/* Fondo principal en modo oscuro: Rich Dark Blue / Midnight Slate con gradientes radiales */
+/* ========== Premium Dark Theme — Slate/Zinc, Indigo accent ========== */
+/* Fondo: escala de grises azulados (Slate) para reducir fatiga visual */
 .dark .app-bg {
-  background-color: hsl(222 47% 6%);
+  background-color: hsl(222 47% 7%);
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, hsl(222 47% 18% / 0.4), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 0%, hsl(217 33% 12% / 0.25), transparent),
-    radial-gradient(ellipse 50% 30% at 0% 100%, hsl(222 47% 10% / 0.2), transparent);
+    radial-gradient(ellipse 80% 50% at 50% -20%, hsl(222 30% 14% / 0.5), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 0%, hsl(215 25% 12% / 0.2), transparent),
+    radial-gradient(ellipse 50% 30% at 0% 100%, hsl(222 25% 10% / 0.15), transparent);
 }
 
-/* Chat: variables por tema (claro y oscuro) */
+/* Chat: variables por tema — Emerald/Teal suave para usuario, Indigo acento */
 .chat-uber {
-  /* Tema claro */
   --chat-bg: 0 0% 98%;
   --chat-surface: 0 0% 96%;
   --chat-border: 214 32% 88%;
-  --chat-uber-green: 142 76% 36%;
+  --chat-accent: 239 84% 67%;
   --chat-input-bg: 0 0% 100%;
-  --chat-bubble-user: 142 76% 36%;
+  --chat-bubble-user: 160 84% 39%;
   --chat-bubble-ai: 0 0% 94%;
+  --chat-title: 222 47% 11%;
+  --chat-muted: 215 16% 47%;
 }
 .dark .chat-uber {
   --chat-bg: 222 47% 8%;
-  --chat-surface: 222 47% 12%;
+  --chat-surface: 222 35% 12%;
   --chat-border: 215 25% 18%;
-  --chat-uber-green: 142 76% 36%;
-  --chat-input-bg: 222 47% 10%;
-  --chat-bubble-user: 142 76% 36%;
+  --chat-accent: 239 84% 67%;
+  --chat-input-bg: 222 35% 11%;
+  --chat-bubble-user: 166 76% 28%;
   --chat-bubble-ai: 222 30% 14%;
+  --chat-title: 210 40% 98%;
+  --chat-muted: 215 20% 58%;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
-  /* Sombra premium para cards y anillo ICD */
   .shadow-glow {
-    box-shadow: 0 0 40px -12px hsl(217 91% 60% / 0.15), 0 25px 50px -12px rgb(0 0 0 / 0.35);
+    box-shadow: 0 0 40px -12px hsl(239 84% 67% / 0.12), 0 25px 50px -12px rgb(0 0 0 / 0.35);
+  }
+  .glass-panel {
+    @apply backdrop-blur-xl bg-slate-900/40 border border-white/10;
   }
 }
 
@@ -61,22 +62,22 @@ body {
     --secondary-foreground: 222 47% 11%;
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
-    --accent: 142 76% 36%;
+    --accent: 239 84% 67%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 222 47% 11%;
-    --flow: 142 76% 36%;
-    --deep-work: 217 91% 60%;
+    --ring: 239 84% 67%;
+    --flow: 160 84% 39%;
+    --deep-work: 239 84% 67%;
     --survival: 0 84% 60%;
-    --chart-1: 142 76% 36%;
-    --chart-2: 217 91% 60%;
+    --chart-1: 160 84% 39%;
+    --chart-2: 239 84% 67%;
     --chart-3: 0 84% 60%;
     --chart-4: 215 16% 47%;
     --chart-5: 222 47% 11%;
-    --radius: 0.5rem;
+    --radius: 0.75rem;
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 47% 11%;
     --sidebar-primary: 222 47% 11%;
@@ -84,11 +85,10 @@ body {
     --sidebar-accent: 210 40% 96%;
     --sidebar-accent-foreground: 222 47% 11%;
     --sidebar-border: 214 32% 91%;
-    --sidebar-ring: 142 76% 36%;
+    --sidebar-ring: 239 84% 67%;
   }
-  /* Dark: Rich Dark Blue / Midnight Slate — Premium Health & Knowledge */
   .dark {
-    --background: 222 47% 6%;
+    --background: 222 47% 7%;
     --foreground: 210 40% 98%;
     --card: 222 35% 11%;
     --card-foreground: 210 40% 98%;
@@ -96,33 +96,33 @@ body {
     --popover-foreground: 210 40% 98%;
     --primary: 210 40% 98%;
     --primary-foreground: 222 47% 11%;
-    --secondary: 222 30% 14%;
+    --secondary: 215 28% 17%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 222 25% 16%;
-    --muted-foreground: 215 20% 58%;
-    --accent: 142 76% 36%;
+    --muted: 215 25% 16%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 239 84% 67%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 63% 45%;
     --destructive-foreground: 210 40% 98%;
     --border: 215 25% 18%;
     --input: 215 25% 18%;
-    --ring: 217 91% 60%;
-    --flow: 142 76% 36%;
-    --deep-work: 217 91% 60%;
+    --ring: 239 84% 67%;
+    --flow: 160 76% 36%;
+    --deep-work: 239 84% 67%;
     --survival: 0 84% 60%;
-    --chart-1: 142 76% 36%;
-    --chart-2: 217 91% 60%;
+    --chart-1: 160 84% 39%;
+    --chart-2: 239 84% 67%;
     --chart-3: 0 84% 60%;
-    --chart-4: 215 20% 58%;
+    --chart-4: 215 20% 65%;
     --chart-5: 210 40% 98%;
-    --sidebar-background: 222 40% 8%;
+    --sidebar-background: 222 40% 9%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 210 40% 98%;
     --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 222 30% 14%;
+    --sidebar-accent: 215 28% 17%;
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 215 25% 16%;
-    --sidebar-ring: 142 76% 36%;
+    --sidebar-ring: 239 84% 67%;
   }
 }
 
@@ -133,6 +133,17 @@ body {
   body {
     @apply bg-background text-foreground antialiased;
   }
+  .dark {
+    color-scheme: dark;
+  }
+}
+
+/* Títulos: gris muy claro (#F8FAFC); secundarios gris medio (#94A3B8) */
+.dark h1, .dark h2, .dark h3 {
+  color: hsl(210 40% 98%);
+}
+.dark .text-muted-foreground {
+  color: hsl(215 20% 65%);
 }
 
 /* Markdown Chat Styles */
@@ -141,4 +152,4 @@ body {
 .markdown-prose p:last-child { margin-bottom: 0; }
 .katex-display { overflow-x: auto; padding: 0.5rem 0; margin: 0.5rem 0; }
 .markdown-prose blockquote { border-left: 4px solid hsl(var(--muted-foreground)); padding-left: 1rem; margin: 1rem 0; font-style: italic; color: hsl(var(--muted-foreground)); }
-.markdown-prose strong { font-weight: 600; color: hsl(var(--foreground)); }
+.markdown-prose strong { font-weight: 600; color: inherit; }

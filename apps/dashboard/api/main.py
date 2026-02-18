@@ -127,6 +127,30 @@ class StudySessionCreate(BaseModel):
     comments: Optional[str] = None
 
 
+class MindMapRequest(BaseModel):
+    """Payload para generar mapa mental desde texto."""
+    text: str
+
+
+class MindMapNodeResponse(BaseModel):
+    id: str
+    label: str
+    type: str
+
+
+class MindMapEdgeResponse(BaseModel):
+    source: str
+    target: str
+    relation: str
+
+
+class MindMapResponse(BaseModel):
+    """Respuesta del endpoint de mapa mental (alineado con MindMapResult)."""
+    nodes: List[MindMapNodeResponse]
+    edges: List[MindMapEdgeResponse]
+    metadata: Optional[Dict[str, Any]] = None
+
+
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
@@ -684,6 +708,29 @@ async def get_correlation_data():
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Error en análisis: {str(e)}")
+
+
+@app.post("/api/generate-mindmap", response_model=MindMapResponse)
+async def generate_mindmap(data: MindMapRequest):
+    """Genera un mapa mental (grafo de conceptos y relaciones) desde texto."""
+    try:
+        from src.brain.mindmapper import MindMapGenerator
+
+        if not data.text.strip():
+            raise HTTPException(status_code=400, detail="El texto no puede estar vacío.")
+
+        generator = MindMapGenerator()
+        result = await asyncio.to_thread(generator.generate, data.text)
+
+        return MindMapResponse(
+            nodes=[MindMapNodeResponse(id=n.id, label=n.label, type=n.type) for n in result.nodes],
+            edges=[MindMapEdgeResponse(source=e.source, target=e.target, relation=e.relation) for e in result.edges],
+            metadata=result.metadata,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al generar mapa mental: {str(e)}")
 
 
 if __name__ == "__main__":
