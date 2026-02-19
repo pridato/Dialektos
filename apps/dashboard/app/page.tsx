@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Progress } from '@/components/ui/progress'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { useICD } from '@/hooks/use-icd'
@@ -76,6 +77,7 @@ export default function Page() {
   const mindMapRef = useRef<MindMapViewHandle>(null)
   const [mindMapText, setMindMapText] = useState('')
   const [userLevel, setUserLevel] = useState<string>('auto')
+  const [inputAreaCollapsed, setInputAreaCollapsed] = useState(false)
   useEffect(() => {
     if (bioLoading || hasAutoOpenedBiotracker.current) return
     if (!hasTodayData) {
@@ -613,56 +615,92 @@ export default function Page() {
 
           {/* Mapa mental — texto → grafo de conceptos */}
           {currentView === 'mindmap' && (
-            <div className="space-y-6 flex flex-col flex-1 min-h-0">
-              <div>
+            <div className="flex flex-col flex-1 min-h-0 h-full">
+              <div className="flex-shrink-0 mb-4">
                 <h2 className="text-3xl font-bold text-balance text-foreground tracking-tight">Mapa mental</h2>
                 <p className="text-muted-foreground mt-1">Pega un texto (apuntes, tema) y genera un grafo de conceptos. Haz clic en un nodo para preguntar sobre ese concepto en el chat.</p>
               </div>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Texto para analizar</CardTitle>
-                  <CardDescription>Introduce o pega el contenido del que quieres extraer conceptos y relaciones.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Textarea
-                    placeholder="Pega aquí un fragmento de apuntes, un tema o un capítulo... Ej: 'redes neuronales', 'cálculo diferencial'"
-                    value={mindMapText}
-                    onChange={(e) => setMindMapText(e.target.value)}
-                    className="min-h-[120px] resize-y"
-                  />
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1">
-                      <Label htmlFor="user-level" className="text-xs text-muted-foreground mb-1 block">
-                        Nivel de conocimiento (opcional)
-                      </Label>
-                      <Select value={userLevel} onValueChange={setUserLevel}>
-                        <SelectTrigger id="user-level" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="auto">Auto (inferir del texto)</SelectItem>
-                          <SelectItem value="principiante">Principiante</SelectItem>
-                          <SelectItem value="intermedio">Intermedio</SelectItem>
-                          <SelectItem value="avanzado">Avanzado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button
-                      onClick={async () => {
-                        const level = userLevel === 'auto' ? undefined : userLevel
-                        setCurrentView('mindmap')
-                        await mindMapRef.current?.generateStudyPlan(mindMapText, level)
-                      }}
-                      disabled={!mindMapText.trim()}
-                      className="gap-2"
-                    >
-                      <Target className="h-4 w-4" />
-                      Generar plan de estudio
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-              <div className="flex-1 min-h-[400px] flex flex-col">
+              
+              {/* Área de entrada colapsable */}
+              <Collapsible open={!inputAreaCollapsed} onOpenChange={(open) => setInputAreaCollapsed(!open)} className="flex-shrink-0 mb-4">
+                <Card>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors rounded-t-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-lg">Texto para analizar</CardTitle>
+                          {inputAreaCollapsed && mindMapText.trim() && (
+                            <CardDescription className="mt-1">
+                              Texto analizado: <span className="font-medium text-foreground">{mindMapText.substring(0, 50)}{mindMapText.length > 50 ? '...' : ''}</span>
+                            </CardDescription>
+                          )}
+                          {!inputAreaCollapsed && (
+                            <CardDescription>Introduce o pega el contenido del que quieres extraer conceptos y relaciones.</CardDescription>
+                          )}
+                        </div>
+                        {inputAreaCollapsed && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setInputAreaCollapsed(false)
+                            }}
+                            className="ml-2"
+                          >
+                            Editar
+                          </Button>
+                        )}
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="space-y-4">
+                      <Textarea
+                        placeholder="Pega aquí un fragmento de apuntes, un tema o un capítulo... Ej: 'redes neuronales', 'cálculo diferencial'"
+                        value={mindMapText}
+                        onChange={(e) => setMindMapText(e.target.value)}
+                        className="min-h-[120px] resize-y"
+                      />
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <Label htmlFor="user-level" className="text-xs text-muted-foreground mb-1 block">
+                            Nivel de conocimiento (opcional)
+                          </Label>
+                          <Select value={userLevel} onValueChange={setUserLevel}>
+                            <SelectTrigger id="user-level" className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto">Auto (inferir del texto)</SelectItem>
+                              <SelectItem value="principiante">Principiante</SelectItem>
+                              <SelectItem value="intermedio">Intermedio</SelectItem>
+                              <SelectItem value="avanzado">Avanzado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          onClick={async () => {
+                            const level = userLevel === 'auto' ? undefined : userLevel
+                            setCurrentView('mindmap')
+                            await mindMapRef.current?.generateStudyPlan(mindMapText, level)
+                            // Colapsar automáticamente después de generar el plan
+                            setInputAreaCollapsed(true)
+                          }}
+                          disabled={!mindMapText.trim()}
+                          className="gap-2"
+                        >
+                          <Target className="h-4 w-4" />
+                          Generar plan de estudio
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+              
+              {/* Área de resultados que se expande */}
+              <div className="flex-1 min-h-0 flex flex-col">
                 <MindMapView
                   ref={mindMapRef}
                   className="flex-1 min-h-[400px]"

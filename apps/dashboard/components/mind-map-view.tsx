@@ -13,6 +13,7 @@ import {
   useEdgesState,
   Background,
   Controls,
+  useReactFlow,
   type Node,
   type Edge,
   type NodeMouseHandler,
@@ -25,12 +26,49 @@ import 'reactflow/dist/style.css'
 import { api, type MindMapNode as ApiNode, type MindMapEdge as ApiEdge, type StudyPathNode, type StudyPlanResponse, type StudyPhase } from '@/lib/api'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { Book, PlayCircle, Code, CheckCircle2, Target, Clock, ChevronDown, ChevronRight, Lock } from 'lucide-react'
+import { Book, PlayCircle, Code, CheckCircle2, Target, Clock, ChevronDown, ChevronRight, Lock, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Dimensiones aproximadas del nodo por defecto para el layout
 const NODE_WIDTH = 180
 const NODE_HEIGHT = 44
+
+// Componente de controles de zoom personalizados (debe estar dentro del contexto de ReactFlow)
+function ZoomControls() {
+  const { zoomIn, zoomOut, fitView } = useReactFlow()
+  
+  return (
+    <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-card/90 backdrop-blur-sm border rounded-lg p-1 shadow-lg">
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => zoomIn()}
+        className="h-8 w-8"
+        title="Acercar"
+      >
+        <ZoomIn className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => zoomOut()}
+        className="h-8 w-8"
+        title="Alejar"
+      >
+        <ZoomOut className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => fitView({ padding: 0.2, duration: 300 })}
+        className="h-8 w-8"
+        title="Centrar a la vista"
+      >
+        <Maximize2 className="h-4 w-4" />
+      </Button>
+    </div>
+  )
+}
 
 // Componente de nodo personalizado para mostrar fases bloqueadas/desbloqueadas
 function CustomPhaseNode({ data, selected }: { data: any; selected: boolean }) {
@@ -412,13 +450,13 @@ export const MindMapView = forwardRef<MindMapViewHandle, MindMapViewProps>(
 
   return (
     <div className={`relative ${className ?? 'h-[500px] w-full rounded-lg border bg-card'}`} style={{ minHeight: 320 }}>
-      <Tabs defaultValue="exploration" className="h-full flex flex-col">
+      <Tabs defaultValue="exploration" className="h-full flex flex-col min-h-0">
         <TabsList className="mx-2 mt-2">
           <TabsTrigger value="exploration">Exploración libre</TabsTrigger>
           <TabsTrigger value="study-path">Ruta de estudio</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="exploration" className="flex-1 mt-0">
+        <TabsContent value="exploration" className="flex-1 mt-0 relative">
           {loading && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-lg bg-background/80 backdrop-blur-sm">
               <div className="relative w-16 h-16 mb-4">
@@ -447,10 +485,12 @@ export const MindMapView = forwardRef<MindMapViewHandle, MindMapViewProps>(
           >
             <Background />
             <Controls />
+            {/* Controles de zoom personalizados dentro del contexto de ReactFlow */}
+            <ZoomControls />
           </ReactFlow>
         </TabsContent>
         
-        <TabsContent value="study-path" className="flex-1 mt-0 overflow-auto p-4">
+        <TabsContent value="study-path" className="flex-1 mt-0 overflow-y-auto p-4 min-h-0">
           {(studyPathLoading || studyPlanLoading) && (
             <div className="flex flex-col items-center justify-center h-full">
               <div className="relative w-16 h-16 mb-4">

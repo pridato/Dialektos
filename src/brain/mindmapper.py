@@ -100,6 +100,37 @@ class StudyAction(BaseModel):
         default=None, ge=0, description="Horas estimadas para esta acción"
     )
 
+    @field_validator("type", mode="before")
+    @classmethod
+    def normalize_action_type(cls, v: Any) -> str:
+        """Normaliza tipos de acción no válidos a tipos válidos."""
+        if isinstance(v, str):
+            v = v.strip().lower()
+            # Mapeo de tipos comunes no válidos a tipos válidos
+            type_mapping = {
+                "presentation": "project",  # Presentaciones son proyectos
+                "present": "project",
+                "presentar": "project",
+                "teach": "project",  # Enseñar es un proyecto
+                "explain": "project",
+                "write": "project",  # Escribir es un proyecto
+                "create": "project",
+                "build": "project",
+                "implement": "practice",  # Implementar es práctica
+                "code": "practice",
+                "solve": "practice",
+                "exercise": "practice",
+                "study": "read",  # Estudiar es leer
+                "learn": "read",
+                "watch_video": "watch",
+                "video": "watch",
+                "tutorial": "watch",
+                "review_material": "review",
+                "revision": "review",
+            }
+            return type_mapping.get(v, v)
+        return v
+
 
 MilestoneType = Literal["knowledge_check", "practical_exercise", "project", "self_assessment"]
 
@@ -273,7 +304,14 @@ Reglas CRÍTICAS para diseñar el plan:
 
 4. ACCIONES CONCRETAS:
    - Cada fase debe tener al menos 2-4 acciones
-   - Tipos de acción: "read" (leer), "practice" (practicar), "watch" (ver video), "project" (proyecto), "review" (repasar)
+   - Tipos de acción PERMITIDOS (usa SOLO estos): "read" (leer), "practice" (practicar), "watch" (ver video), "project" (proyecto), "review" (repasar)
+   - IMPORTANTE: El campo "type" de cada acción DEBE ser exactamente uno de: "read", "practice", "watch", "project", "review"
+   - NO uses otros tipos como "presentation", "write", "teach", etc. Mapea todo a los 5 tipos permitidos:
+     * "presentation", "write", "teach", "explain" → usa "project"
+     * "implement", "code", "solve", "exercise" → usa "practice"
+     * "study", "learn" → usa "read"
+     * "watch_video", "video", "tutorial" → usa "watch"
+     * "review_material", "revision" → usa "review"
    - Incluye acciones genéricas (ej: "Estudiar derivadas") y específicas cuando sea posible (ej: "Leer capítulo 3 del libro X")
    - Estima horas realistas para cada acción
 
