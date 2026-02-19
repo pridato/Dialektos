@@ -628,14 +628,25 @@ export default function Page() {
                     onChange={(e) => setMindMapText(e.target.value)}
                     className="min-h-[120px] resize-y"
                   />
-                  <Button
-                    onClick={() => mindMapRef.current?.generateMindmap(mindMapText)}
-                    disabled={!mindMapText.trim()}
-                    className="gap-2"
-                  >
-                    <Network className="h-4 w-4" />
-                    Generar mapa mental
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => mindMapRef.current?.generateMindmap(mindMapText)}
+                      disabled={!mindMapText.trim()}
+                      className="gap-2"
+                    >
+                      <Network className="h-4 w-4" />
+                      Generar mapa mental
+                    </Button>
+                    <Button
+                      onClick={() => mindMapRef.current?.generateStudyPath(mindMapText)}
+                      disabled={!mindMapText.trim()}
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <Network className="h-4 w-4" />
+                      Generar ruta de estudio
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
               <div className="flex-1 min-h-[400px] flex flex-col">

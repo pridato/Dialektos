@@ -151,6 +151,20 @@ class MindMapResponse(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
+class StudyPathNodeResponse(BaseModel):
+    """Nodo de la ruta de estudio con dependencias."""
+    id: str
+    label: str
+    description: str
+    difficulty: int
+    prerequisites: List[str]
+
+
+class StudyPathResponse(BaseModel):
+    """Respuesta del endpoint de ruta de estudio estructurada."""
+    nodes: List[StudyPathNodeResponse]
+
+
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
@@ -731,6 +745,36 @@ async def generate_mindmap(data: MindMapRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al generar mapa mental: {str(e)}")
+
+
+@app.post("/api/generate-study-path", response_model=StudyPathResponse)
+async def generate_study_path(data: MindMapRequest):
+    """Genera una ruta de estudio estructurada (DAG de dependencias conceptuales) desde texto."""
+    try:
+        from src.brain.mindmapper import StudyPathGenerator
+
+        if not data.text.strip():
+            raise HTTPException(status_code=400, detail="El texto no puede estar vacío.")
+
+        generator = StudyPathGenerator()
+        result = await asyncio.to_thread(generator.generate, data.text)
+
+        return StudyPathResponse(
+            nodes=[
+                StudyPathNodeResponse(
+                    id=n.id,
+                    label=n.label,
+                    description=n.description,
+                    difficulty=n.difficulty,
+                    prerequisites=n.prerequisites,
+                )
+                for n in result.nodes
+            ]
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al generar ruta de estudio: {str(e)}")
 
 
 if __name__ == "__main__":
