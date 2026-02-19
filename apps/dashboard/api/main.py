@@ -825,15 +825,29 @@ async def generate_study_path(data: MindMapRequest):
 
 @app.post("/api/generate-study-plan", response_model=StudyPlanResponse)
 async def generate_study_plan(data: StudyPlanRequest):
-    """Genera un plan de estudio progresivo completo desde las bases hasta el objetivo."""
+    """Genera un plan de estudio progresivo completo desde las bases hasta el objetivo.
+    
+    Primero busca en caché Redis. Si no existe, genera con LLM y guarda en caché.
+    """
     try:
         from src.brain.mindmapper import StudyPlanGenerator
+        from src.utils.cache import get_study_plan_from_cache, save_study_plan_to_cache
 
         if not data.text.strip():
             raise HTTPException(status_code=400, detail="El texto no puede estar vacío.")
 
-        generator = StudyPlanGenerator()
-        result = await asyncio.to_thread(generator.generate, data.text, data.user_level)
+        # Intentar recuperar desde caché
+        cached_result = get_study_plan_from_cache(data.text, data.user_level)
+        if cached_result is not None:
+            # Plan encontrado en caché, retornar directamente
+            result = cached_result
+        else:
+            # No está en caché, generar con LLM
+            generator = StudyPlanGenerator()
+            result = await asyncio.to_thread(generator.generate, data.text, data.user_level)
+            
+            # Guardar en caché para próximas consultas
+            save_study_plan_to_cache(data.text, result, data.user_level)
 
         return StudyPlanResponse(
             goal=result.goal,

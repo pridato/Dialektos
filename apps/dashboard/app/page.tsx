@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, Home, MessageSquare, Activity, BarChart3, User, Settings, TrendingUp, TrendingDown, Brain, Battery, Moon, Heart, Zap, Target, Send, Sparkles, Network } from 'lucide-react'
+import { Menu, Home, MessageSquare, Activity, User, Settings, TrendingUp, TrendingDown, Brain, Battery, Moon, Heart, Zap, Target, Send, Sparkles, Network } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,7 +19,7 @@ import { Progress } from '@/components/ui/progress'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useICD } from '@/hooks/use-icd'
 import { useTodayBiometrics, useRecentBiometrics } from '@/hooks/use-biometrics'
 import { BiometricInputManual } from '@/components/biometric-input-manual'
@@ -31,7 +31,7 @@ import type { StudySessionRecord } from '@/lib/session-types'
 import { MindMapView, type MindMapViewHandle } from '@/components/mind-map-view'
 import { toast } from 'sonner'
 
-type View = 'dashboard' | 'chat' | 'biotracker' | 'analytics' | 'session' | 'mindmap'
+type View = 'dashboard' | 'chat' | 'biotracker' | 'session' | 'mindmap'
 
 export default function Page() {
   const [currentView, setCurrentView] = useState<View>('dashboard')
@@ -131,19 +131,6 @@ export default function Page() {
     'Diferencia entre correlación y causalidad',
   ]
 
-  const scatterData = Array.from({ length: 30 }, (_, i) => ({
-    vfc: 30 + Math.random() * 40,
-    foco: 3 + Math.random() * 7,
-    zone: Math.random() > 0.5 ? 'flow' : Math.random() > 0.5 ? 'deep-work' : 'survival'
-  }))
-
-  const correlationData = [
-    { metric: 'VFC', vfc: 1, sleep: 0.65, energy: 0.72, focus: 0.58 },
-    { metric: 'Sueño', vfc: 0.65, sleep: 1, energy: 0.81, focus: 0.69 },
-    { metric: 'Energía', vfc: 0.72, sleep: 0.81, energy: 1, focus: 0.88 },
-    { metric: 'Foco', vfc: 0.58, sleep: 0.69, energy: 0.88, focus: 1 }
-  ]
-
   const streakData = Array.from({ length: 28 }, (_, i) => ({
     day: i,
     studied: Math.random() > 0.3
@@ -190,17 +177,6 @@ export default function Page() {
       >
         <Activity className="mr-2 h-4 w-4" />
         Bio-Tracker
-      </Button>
-      <Button
-        variant="ghost"
-        className={navItemClass('analytics')}
-        onClick={() => {
-          setCurrentView('analytics')
-          if (mobile) setMobileMenuOpen(false)
-        }}
-      >
-        <BarChart3 className="mr-2 h-4 w-4" />
-        Analíticas
       </Button>
       <Button
         variant="ghost"
@@ -1064,133 +1040,6 @@ export default function Page() {
             </div>
           )}
 
-          {/* Analytics View */}
-          {currentView === 'analytics' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-3xl font-bold text-balance text-foreground tracking-tight">Analíticas</h2>
-                <p className="text-muted-foreground mt-1 leading-relaxed">Correlaciones y patrones de rendimiento</p>
-              </div>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>VFC vs. Nivel de Foco</CardTitle>
-                  <CardDescription>Relación entre variabilidad de frecuencia cardíaca y capacidad de concentración</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <ScatterChart>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis
-                        type="number"
-                        dataKey="vfc"
-                        name="VFC"
-                        unit=" ms"
-                        stroke="hsl(var(--muted-foreground))"
-                      />
-                      <YAxis
-                        type="number"
-                        dataKey="foco"
-                        name="Foco"
-                        unit="/10"
-                        stroke="hsl(var(--muted-foreground))"
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '0.5rem'
-                        }}
-                      />
-                      <Scatter data={scatterData}>
-                        {scatterData.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={
-                              entry.zone === 'flow'
-                                ? 'hsl(var(--flow))'
-                                : entry.zone === 'deep-work'
-                                ? 'hsl(var(--deep-work))'
-                                : 'hsl(var(--survival))'
-                            }
-                          />
-                        ))}
-                      </Scatter>
-                    </ScatterChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Matriz de Correlación</CardTitle>
-                  <CardDescription>Relaciones entre métricas biométricas y cognitivas</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr>
-                          <th className="p-2 text-left text-sm font-medium"></th>
-                          <th className="p-2 text-center text-sm font-medium">VFC</th>
-                          <th className="p-2 text-center text-sm font-medium">Sueño</th>
-                          <th className="p-2 text-center text-sm font-medium">Energía</th>
-                          <th className="p-2 text-center text-sm font-medium">Foco</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {correlationData.map((row, i) => (
-                          <tr key={i}>
-                            <td className="p-2 text-sm font-medium">{row.metric}</td>
-                            <td className="p-2">
-                              <div
-                                className="h-12 flex items-center justify-center text-sm font-semibold rounded"
-                                style={{
-                                  backgroundColor: `rgba(${row.vfc > 0.5 ? '34, 197, 94' : '239, 68, 68'}, ${Math.abs(row.vfc)})`
-                                }}
-                              >
-                                {row.vfc.toFixed(2)}
-                              </div>
-                            </td>
-                            <td className="p-2">
-                              <div
-                                className="h-12 flex items-center justify-center text-sm font-semibold rounded"
-                                style={{
-                                  backgroundColor: `rgba(${row.sleep > 0.5 ? '34, 197, 94' : '239, 68, 68'}, ${Math.abs(row.sleep)})`
-                                }}
-                              >
-                                {row.sleep.toFixed(2)}
-                              </div>
-                            </td>
-                            <td className="p-2">
-                              <div
-                                className="h-12 flex items-center justify-center text-sm font-semibold rounded"
-                                style={{
-                                  backgroundColor: `rgba(${row.energy > 0.5 ? '34, 197, 94' : '239, 68, 68'}, ${Math.abs(row.energy)})`
-                                }}
-                              >
-                                {row.energy.toFixed(2)}
-                              </div>
-                            </td>
-                            <td className="p-2">
-                              <div
-                                className="h-12 flex items-center justify-center text-sm font-semibold rounded"
-                                style={{
-                                  backgroundColor: `rgba(${row.focus > 0.5 ? '34, 197, 94' : '239, 68, 68'}, ${Math.abs(row.focus)})`
-                                }}
-                              >
-                                {row.focus.toFixed(2)}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
         </div>
       </main>
     </div>
