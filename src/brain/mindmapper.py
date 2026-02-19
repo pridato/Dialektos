@@ -82,6 +82,66 @@ class StudyPathResult(BaseModel):
     nodes: List[StudyPathNode] = Field(default_factory=list, description="Lista de nodos con dependencias")
 
 
+# ─── Modelos para Plan de Estudio Progresivo ──────────────────────────────
+
+ActionType = Literal["read", "practice", "watch", "project", "review"]
+
+
+class StudyAction(BaseModel):
+    """Acción concreta dentro de una fase."""
+
+    id: str = Field(..., min_length=1, description="Identificador único de la acción")
+    type: ActionType = Field(..., description="Tipo de acción")
+    description: str = Field(..., min_length=1, description="Descripción de la acción")
+    resource: Optional[str] = Field(
+        default=None, description="Recurso específico si está disponible (libro, video, ejercicio)"
+    )
+    estimated_hours: Optional[float] = Field(
+        default=None, ge=0, description="Horas estimadas para esta acción"
+    )
+
+
+MilestoneType = Literal["knowledge_check", "practical_exercise", "project", "self_assessment"]
+
+
+class Milestone(BaseModel):
+    """Criterio de superación (hito) para una fase."""
+
+    id: str = Field(..., min_length=1, description="Identificador único del hito")
+    description: str = Field(..., min_length=1, description="Descripción del criterio")
+    type: MilestoneType = Field(..., description="Tipo de validación")
+    validation_hint: Optional[str] = Field(
+        default=None, description="Pista sobre cómo validar (ej: 'Resolver 5 ejercicios sin ayuda')"
+    )
+
+
+class StudyPhase(BaseModel):
+    """Fase del plan de estudio."""
+
+    id: str = Field(..., min_length=1, description="Identificador único de la fase")
+    level: int = Field(..., ge=0, description="Nivel de la fase (0 = fundamentos, último = objetivo)")
+    title: str = Field(..., min_length=1, description="Título de la fase")
+    description: str = Field(..., min_length=1, description="Descripción de qué se aprende en esta fase")
+    concepts: List[str] = Field(default_factory=list, description="Conceptos que se cubren en esta fase")
+    prerequisites: List[str] = Field(
+        default_factory=list, description="IDs de fases anteriores requeridas"
+    )
+    actions: List[StudyAction] = Field(default_factory=list, description="Acciones concretas a realizar")
+    milestones: List[Milestone] = Field(default_factory=list, description="Criterios de superación")
+    estimated_weeks: float = Field(..., ge=0, description="Semanas estimadas para completar esta fase")
+    estimated_hours: float = Field(..., ge=0, description="Horas totales estimadas")
+
+
+class StudyPlanResult(BaseModel):
+    """Resultado completo del plan de estudio progresivo."""
+
+    goal: str = Field(..., min_length=1, description="Objetivo del plan")
+    inferred_level: str = Field(..., description="Nivel inferido del usuario")
+    total_estimated_weeks: float = Field(..., ge=0, description="Total de semanas estimadas")
+    total_estimated_hours: float = Field(..., ge=0, description="Total de horas estimadas")
+    phases: List[StudyPhase] = Field(default_factory=list, description="Fases ordenadas del plan")
+
+
 # ─── Prompt del sistema ───────────────────────────────────────
 
 MINDMAP_SYSTEM_PROMPT = """Eres un asistente que extrae conceptos clave y sus relaciones de un texto académico.
@@ -142,6 +202,98 @@ Reglas CRÍTICAS para crear el grafo de dependencias:
 - Mínimo 5 nodos. Objetivo: entre 8 y 25 conceptos con dependencias claras.
 - Asegúrate de que todos los ids en "prerequisites" existan en la lista de "nodes".
 - Responde solo con el JSON, sin explicaciones ni ```json."""
+
+
+STUDY_PLAN_SYSTEM_PROMPT = """Eres un tutor experto que diseña planes de estudio progresivos para temas de matemáticas, física y ciencia de datos.
+Cuando el usuario menciona un tema objetivo (ej: "redes neuronales", "cálculo diferencial", "álgebra lineal"), debes diseñar un plan completo desde las bases matemáticas y conceptuales necesarias hasta alcanzar ese objetivo.
+
+Tu respuesta debe ser ÚNICAMENTE un objeto JSON válido, sin texto adicional ni markdown, con esta estructura exacta:
+
+{
+  "goal": "redes neuronales",
+  "inferred_level": "principiante",
+  "total_estimated_weeks": 12.0,
+  "total_estimated_hours": 120.0,
+  "phases": [
+    {
+      "id": "phase_1",
+      "level": 0,
+      "title": "Fundamentos de Álgebra Lineal",
+      "description": "Aprender los conceptos básicos de vectores, matrices y operaciones lineales necesarios para entender redes neuronales",
+      "concepts": ["vectores", "matrices", "multiplicación de matrices", "transposición"],
+      "prerequisites": [],
+      "actions": [
+        {
+          "id": "action_1_1",
+          "type": "read",
+          "description": "Leer capítulo 1 sobre vectores y matrices del libro de álgebra lineal",
+          "resource": "Libro: 'Álgebra Lineal' - Capítulo 1",
+          "estimated_hours": 4.0
+        },
+        {
+          "id": "action_1_2",
+          "type": "practice",
+          "description": "Resolver ejercicios de multiplicación de matrices",
+          "resource": "Ejercicios 1-20 de la sección 1.3",
+          "estimated_hours": 6.0
+        }
+      ],
+      "milestones": [
+        {
+          "id": "milestone_1_1",
+          "description": "Ser capaz de multiplicar matrices de cualquier tamaño sin errores",
+          "type": "practical_exercise",
+          "validation_hint": "Resolver 10 ejercicios de multiplicación de matrices sin ayuda"
+        }
+      ],
+      "estimated_weeks": 2.0,
+      "estimated_hours": 10.0
+    }
+  ]
+}
+
+Reglas CRÍTICAS para diseñar el plan:
+
+1. IDENTIFICAR EL OBJETIVO:
+   - Extrae el tema objetivo del texto del usuario (ej: "redes neuronales", "cálculo diferencial")
+   - Si el texto es solo el nombre del tema sin contexto, ese es el objetivo
+
+2. INFERIR NIVEL INICIAL:
+   - Si solo menciona el nombre del tema sin conceptos avanzados → "principiante"
+   - Si menciona conceptos intermedios o aplicaciones → "intermedio"
+   - Si menciona conceptos avanzados, implementaciones o investigación → "avanzado"
+   - El campo "inferred_level" debe ser exactamente uno de: "principiante", "intermedio", "avanzado"
+
+3. CONSTRUIR CAMINO PROGRESIVO:
+   - Diseña fases ordenadas desde las bases hasta el objetivo
+   - Cada fase debe tener un "level" (0 = fundamentos, números mayores = más avanzado)
+   - La última fase debe alcanzar el objetivo mencionado
+   - Cada fase debe tener "prerequisites" que apunten a IDs de fases anteriores (fase nivel 0 no tiene prerequisitos)
+   - Mínimo 3 fases, idealmente entre 4 y 8 fases
+
+4. ACCIONES CONCRETAS:
+   - Cada fase debe tener al menos 2-4 acciones
+   - Tipos de acción: "read" (leer), "practice" (practicar), "watch" (ver video), "project" (proyecto), "review" (repasar)
+   - Incluye acciones genéricas (ej: "Estudiar derivadas") y específicas cuando sea posible (ej: "Leer capítulo 3 del libro X")
+   - Estima horas realistas para cada acción
+
+5. CRITERIOS DE SUPERACIÓN (MILESTONES):
+   - Cada fase debe tener al menos 1-2 hitos
+   - Tipos: "knowledge_check" (verificación de conocimiento), "practical_exercise" (ejercicio práctico), "project" (proyecto), "self_assessment" (autoevaluación)
+   - Los hitos deben ser objetivos y medibles
+   - Incluye "validation_hint" con pistas sobre cómo validar
+
+6. ESTIMACIONES DE TIEMPO:
+   - "estimated_weeks": semanas realistas para completar la fase (considera 5-10 horas por semana)
+   - "estimated_hours": suma de horas de todas las acciones de la fase
+   - "total_estimated_weeks" y "total_estimated_hours": suma de todas las fases
+
+7. VALIDACIÓN:
+   - Todos los IDs de fases en "prerequisites" deben existir en la lista de "phases"
+   - Las fases deben estar ordenadas por "level" (0, 1, 2, ...)
+   - La fase con mayor "level" debe ser la que alcanza el objetivo
+
+Responde solo con el JSON, sin explicaciones ni ```json."""
 
 
 def _extract_json_from_response(raw: str) -> str:
@@ -315,3 +467,130 @@ class StudyPathGenerator:
                     )
 
         return StudyPathResult(nodes=nodes)
+
+
+# ─── Clase para Plan de Estudio Progresivo ─────────────────────────────────
+
+
+class StudyPlanGenerator:
+    """
+    Genera un plan de estudio progresivo completo desde las bases hasta un objetivo usando el LLM.
+
+    Por defecto usa query_llm de llm_client. Se puede inyectar otro callable
+    para pruebas o uso con response_format (OpenAI JSON mode).
+    """
+
+    def __init__(
+        self,
+        llm_callable: Optional[Callable[..., str]] = None,
+    ) -> None:
+        """
+        Args:
+            llm_callable: Función (pregunta, *, system_prompt=...) -> str.
+                Si es None, se usa query_llm de src.brain.llm_client.
+        """
+        self._llm = llm_callable if llm_callable is not None else query_llm
+
+    def generate(self, text: str, user_level: Optional[str] = None) -> StudyPlanResult:
+        """
+        Genera un plan de estudio progresivo desde las bases hasta el objetivo mencionado.
+
+        Args:
+            text: Texto con el objetivo del plan (ej: "redes neuronales", "cálculo diferencial").
+            user_level: Nivel del usuario ("principiante", "intermedio", "avanzado").
+                Si es None, se infiere del texto.
+
+        Returns:
+            StudyPlanResult con fases ordenadas, acciones, hitos y estimaciones de tiempo.
+
+        Raises:
+            ValueError: Si text está vacío, el JSON no es válido/validable,
+                        o hay prerequisitos que no existen en las fases.
+        """
+        if not text.strip():
+            raise ValueError("El texto no puede estar vacío.")
+
+        text_stripped = text.strip()
+
+        # Construir prompt con nivel explícito o instrucción para inferir
+        if user_level:
+            level_instruction = f"El usuario tiene nivel '{user_level}'. Diseña el plan apropiado para este nivel."
+        else:
+            level_instruction = "Infiere el nivel inicial del usuario basándote en el texto proporcionado."
+
+        user_prompt = f"""Diseña un plan de estudio progresivo completo para alcanzar el siguiente objetivo.
+{level_instruction}
+
+Objetivo mencionado por el usuario:
+---
+{text_stripped}
+---
+
+Responde solo con el JSON siguiendo la estructura especificada."""
+
+        raw_response: str = self._llm(
+            user_prompt,
+            system_prompt=STUDY_PLAN_SYSTEM_PROMPT,
+            temperature=0.3,
+            max_tokens=4096,  # Más tokens para planes más complejos
+        )
+
+        json_str = _extract_json_from_response(raw_response)
+        try:
+            data = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"La respuesta del LLM no es JSON válido: {e}") from e
+
+        # Validar estructura básica
+        if "phases" not in data:
+            raise ValueError("La respuesta del LLM no contiene 'phases'")
+
+        phases_data = data.get("phases") or []
+        if not phases_data:
+            raise ValueError("El plan debe tener al menos una fase")
+
+        # Validar y crear fases
+        phases = [StudyPhase.model_validate(p) for p in phases_data]
+
+        # Validar prerequisitos
+        phase_ids = {p.id for p in phases}
+        for phase in phases:
+            for prereq_id in phase.prerequisites:
+                if prereq_id not in phase_ids:
+                    raise ValueError(
+                        f"La fase '{phase.id}' tiene un prerequisito '{prereq_id}' que no existe en las fases"
+                    )
+
+        # Validar orden: fase nivel 0 no debe tener prerequisitos
+        level_0_phases = [p for p in phases if p.level == 0]
+        for phase in level_0_phases:
+            if phase.prerequisites:
+                raise ValueError(
+                    f"La fase '{phase.id}' tiene nivel 0 pero tiene prerequisitos. Las fases nivel 0 no deben tener prerequisitos."
+                )
+
+        # Ordenar fases por nivel
+        phases_sorted = sorted(phases, key=lambda p: p.level)
+
+        # Validar que inferred_level sea válido
+        inferred_level = data.get("inferred_level", "principiante")
+        if inferred_level not in ["principiante", "intermedio", "avanzado"]:
+            inferred_level = "principiante"
+
+        # Calcular totales si no están presentes o validar si están
+        total_weeks = data.get("total_estimated_weeks")
+        total_hours = data.get("total_estimated_hours")
+        if total_weeks is None:
+            total_weeks = sum(p.estimated_weeks for p in phases_sorted)
+        if total_hours is None:
+            total_hours = sum(p.estimated_hours for p in phases_sorted)
+
+        goal = data.get("goal", text_stripped)
+
+        return StudyPlanResult(
+            goal=goal,
+            inferred_level=inferred_level,
+            total_estimated_weeks=float(total_weeks),
+            total_estimated_hours=float(total_hours),
+            phases=phases_sorted,
+        )

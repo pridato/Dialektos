@@ -165,6 +165,52 @@ class StudyPathResponse(BaseModel):
     nodes: List[StudyPathNodeResponse]
 
 
+class StudyPlanRequest(BaseModel):
+    """Payload para generar plan de estudio progresivo."""
+    text: str
+    user_level: Optional[str] = None  # Opcional: "principiante", "intermedio", "avanzado"
+
+
+class StudyActionResponse(BaseModel):
+    """Acción concreta dentro de una fase."""
+    id: str
+    type: str
+    description: str
+    resource: Optional[str] = None
+    estimated_hours: Optional[float] = None
+
+
+class MilestoneResponse(BaseModel):
+    """Criterio de superación (hito) para una fase."""
+    id: str
+    description: str
+    type: str
+    validation_hint: Optional[str] = None
+
+
+class StudyPhaseResponse(BaseModel):
+    """Fase del plan de estudio."""
+    id: str
+    level: int
+    title: str
+    description: str
+    concepts: List[str]
+    prerequisites: List[str]
+    actions: List[StudyActionResponse]
+    milestones: List[MilestoneResponse]
+    estimated_weeks: float
+    estimated_hours: float
+
+
+class StudyPlanResponse(BaseModel):
+    """Respuesta del endpoint de plan de estudio progresivo."""
+    goal: str
+    inferred_level: str
+    total_estimated_weeks: float
+    total_estimated_hours: float
+    phases: List[StudyPhaseResponse]
+
+
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
@@ -775,6 +821,78 @@ async def generate_study_path(data: MindMapRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al generar ruta de estudio: {str(e)}")
+
+
+@app.post("/api/generate-study-plan", response_model=StudyPlanResponse)
+async def generate_study_plan(data: StudyPlanRequest):
+    """Genera un plan de estudio progresivo completo desde las bases hasta el objetivo."""
+    try:
+        from src.brain.mindmapper import StudyPlanGenerator
+
+        if not data.text.strip():
+            raise HTTPException(status_code=400, detail="El texto no puede estar vacío.")
+
+        generator = StudyPlanGenerator()
+        result = await asyncio.to_thread(generator.generate, data.text, data.user_level)
+
+        return StudyPlanResponse(
+            goal=result.goal,
+            inferred_level=result.inferred_level,
+            total_estimated_weeks=result.total_estimated_weeks,
+            total_estimated_hours=result.total_estimated_hours,
+            phases=[
+                StudyPhaseResponse(
+                    id=p.id,
+                    level=p.level,
+                    title=p.title,
+                    description=p.description,
+                    concepts=p.concepts,
+                    prerequisites=p.prerequisites,
+                    actions=[
+                        StudyActionResponse(
+                            id=a.id,
+                            type=a.type,
+                            description=a.description,
+                            resource=a.resource,
+                            estimated_hours=a.estimated_hours,
+                        )
+                        for a in p.actions
+                    ],
+                    milestones=[
+                        MilestoneResponse(
+                            id=m.id,
+                            description=m.description,
+                            type=m.type,
+                            validation_hint=m.validation_hint,
+                        )
+                        for m in p.milestones
+                    ],
+                    estimated_weeks=p.estimated_weeks,
+                    estimated_hours=p.estimated_hours,
+                )
+                for p in result.phases
+            ],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al generar plan de estudio: {str(e)}")
+
+
+@app.get("/api/tasks")
+async def get_tasks():
+    """Sirve el contenido de TAREAS.md para el parser del árbol de habilidades."""
+    try:
+        # Buscar TAREAS.md en la raíz del proyecto (4 niveles arriba desde apps/dashboard/api/main.py)
+        tasks_file = project_root / "docs" / "TAREAS.md"
+        if not tasks_file.exists():
+            raise HTTPException(status_code=404, detail="TAREAS.md no encontrado")
+        
+        content = tasks_file.read_text(encoding="utf-8")
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(content, media_type="text/plain; charset=utf-8")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error leyendo TAREAS.md: {str(e)}")
 
 
 if __name__ == "__main__":

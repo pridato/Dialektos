@@ -28,6 +28,7 @@ import { api } from '@/lib/api'
 import MarkdownRenderer from '@/components/markdown-renderer'
 import type { StudySessionRecord } from '@/lib/session-types'
 import { MindMapView, type MindMapViewHandle } from '@/components/mind-map-view'
+import { toast } from 'sonner'
 
 type View = 'dashboard' | 'chat' | 'biotracker' | 'analytics' | 'session' | 'mindmap'
 
@@ -74,6 +75,7 @@ export default function Page() {
   const chatMessagesEndRef = useRef<HTMLDivElement>(null)
   const mindMapRef = useRef<MindMapViewHandle>(null)
   const [mindMapText, setMindMapText] = useState('')
+  const [userLevel, setUserLevel] = useState<string>('auto')
   useEffect(() => {
     if (bioLoading || hasAutoOpenedBiotracker.current) return
     if (!hasTodayData) {
@@ -623,28 +625,39 @@ export default function Page() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <Textarea
-                    placeholder="Pega aquí un fragmento de apuntes, un tema o un capítulo..."
+                    placeholder="Pega aquí un fragmento de apuntes, un tema o un capítulo... Ej: 'redes neuronales', 'cálculo diferencial'"
                     value={mindMapText}
                     onChange={(e) => setMindMapText(e.target.value)}
                     className="min-h-[120px] resize-y"
                   />
-                  <div className="flex gap-2">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <Label htmlFor="user-level" className="text-xs text-muted-foreground mb-1 block">
+                        Nivel de conocimiento (opcional)
+                      </Label>
+                      <Select value={userLevel} onValueChange={setUserLevel}>
+                        <SelectTrigger id="user-level" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">Auto (inferir del texto)</SelectItem>
+                          <SelectItem value="principiante">Principiante</SelectItem>
+                          <SelectItem value="intermedio">Intermedio</SelectItem>
+                          <SelectItem value="avanzado">Avanzado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <Button
-                      onClick={() => mindMapRef.current?.generateMindmap(mindMapText)}
+                      onClick={async () => {
+                        const level = userLevel === 'auto' ? undefined : userLevel
+                        setCurrentView('mindmap')
+                        await mindMapRef.current?.generateStudyPlan(mindMapText, level)
+                      }}
                       disabled={!mindMapText.trim()}
                       className="gap-2"
                     >
-                      <Network className="h-4 w-4" />
-                      Generar mapa mental
-                    </Button>
-                    <Button
-                      onClick={() => mindMapRef.current?.generateStudyPath(mindMapText)}
-                      disabled={!mindMapText.trim()}
-                      variant="outline"
-                      className="gap-2"
-                    >
-                      <Network className="h-4 w-4" />
-                      Generar ruta de estudio
+                      <Target className="h-4 w-4" />
+                      Generar plan de estudio
                     </Button>
                   </div>
                 </CardContent>
