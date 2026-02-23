@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Menu, Home, MessageSquare, Activity, User, Settings, TrendingUp, TrendingDown, Brain, Battery, Moon, Heart, Zap, Target, Send, Sparkles, Network } from 'lucide-react'
+import { Menu, MessageSquare, Activity, User, Settings, TrendingUp, TrendingDown, Brain, Battery, Moon, Heart, Zap, Target, Send, Sparkles, Network } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,10 +31,10 @@ import type { StudySessionRecord } from '@/lib/session-types'
 import { MindMapView, type MindMapViewHandle } from '@/components/mind-map-view'
 import { toast } from 'sonner'
 
-type View = 'dashboard' | 'chat' | 'biotracker' | 'session' | 'mindmap'
+type View = 'chat' | 'biotracker' | 'session' | 'mindmap'
 
 export default function Page() {
-  const [currentView, setCurrentView] = useState<View>('dashboard')
+  const [currentView, setCurrentView] = useState<View>('mindmap')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [socraticMode, setSocraticMode] = useState(true)
   const [chatInput, setChatInput] = useState('')
@@ -51,11 +51,11 @@ export default function Page() {
   const zoneColor = icd?.zone_color ?? 'hsl(var(--muted))'
   const zoneLabel = icd?.zone_label ?? 'Sin datos'
   
-  // Cargar racha de estudio
+  // Cargar racha de estudio (fallback silencioso si el backend no está disponible)
   useEffect(() => {
-    api.getStudyStreak().then((data) => {
-      setStudyStreak(data.days)
-    }).catch(console.error)
+    api.getStudyStreak()
+      .then((data) => setStudyStreak(data.days ?? []))
+      .catch(() => setStudyStreak([]))
   }, [])
 
   // Precalentar backend del chat al abrir la vista para que la primera pregunta sea rápida
@@ -137,7 +137,7 @@ export default function Page() {
   }))
 
   const navItemClass = (view: View) =>
-    `justify-start transition-all duration-300 rounded-xl pl-3 ${
+    `w-full justify-start items-center transition-all duration-300 rounded-xl pl-3 pr-3 py-2 ${
       currentView === view
         ? 'bg-primary/10 text-foreground font-semibold border-l-4 border-l-accent border border-slate-800 dark:border-white/10'
         : 'text-muted-foreground dark:text-slate-400 hover:text-foreground hover:bg-muted/50 dark:hover:bg-white/5'
@@ -147,25 +147,14 @@ export default function Page() {
     <nav className="flex flex-col gap-1">
       <Button
         variant="ghost"
-        className={navItemClass('dashboard')}
-        onClick={() => {
-          setCurrentView('dashboard')
-          if (mobile) setMobileMenuOpen(false)
-        }}
-      >
-        <Home className="mr-2 h-4 w-4" />
-        Inicio
-      </Button>
-      <Button
-        variant="ghost"
         className={navItemClass('chat')}
         onClick={() => {
           setCurrentView('chat')
           if (mobile) setMobileMenuOpen(false)
         }}
       >
-        <MessageSquare className="mr-2 h-4 w-4" />
-        Chat Socrático
+        <MessageSquare className="mr-2 h-4 w-4 flex-shrink-0" />
+        <span className="flex-1 text-left">Chat Socrático</span>
       </Button>
       <Button
         variant="ghost"
@@ -175,8 +164,8 @@ export default function Page() {
           if (mobile) setMobileMenuOpen(false)
         }}
       >
-        <Activity className="mr-2 h-4 w-4" />
-        Bio-Tracker
+        <Activity className="mr-2 h-4 w-4 flex-shrink-0" />
+        <span className="flex-1 text-left">Bio-Tracker</span>
       </Button>
       <Button
         variant="ghost"
@@ -186,8 +175,8 @@ export default function Page() {
           if (mobile) setMobileMenuOpen(false)
         }}
       >
-        <Network className="mr-2 h-4 w-4" />
-        Mapa mental
+        <Network className="mr-2 h-4 w-4 flex-shrink-0" />
+        <span className="flex-1 text-left">Mapa mental</span>
       </Button>
       <Button
         variant="ghost"
@@ -197,8 +186,8 @@ export default function Page() {
           if (mobile) setMobileMenuOpen(false)
         }}
       >
-        <Target className="mr-2 h-4 w-4" />
-        Sesión Focus
+        <Target className="mr-2 h-4 w-4 flex-shrink-0" />
+        <span className="flex-1 text-left">Sesión Focus</span>
       </Button>
     </nav>
   )
@@ -329,266 +318,6 @@ export default function Page() {
               }}
             />
           )}
-          {currentView === 'dashboard' && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <h2 className="text-3xl font-bold text-balance text-foreground tracking-tight">Panel de Control</h2>
-                  <p className="text-muted-foreground mt-1 leading-relaxed">Tu cockpit cognitivo personalizado</p>
-                </div>
-                <Button
-                  onClick={() => setCurrentView('chat')}
-                  size="lg"
-                  className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl shadow-lg shrink-0 gap-2 border-0 transition-all duration-300"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                  Ir al Chat
-                </Button>
-              </div>
-
-              {/* ICD Hero Section */}
-              {icdLoading ? (
-                <Card>
-                  <CardContent className="p-6 lg:p-8">
-                    <div className="text-center py-8">Cargando datos del ICD...</div>
-                  </CardContent>
-                </Card>
-              ) : icdScore !== null ? (
-                <Card className="border-2 rounded-3xl shadow-glow transition-all duration-300" style={{ borderColor: zoneColor }}>
-                  <CardContent className="p-6 lg:p-8">
-                    <div className="flex flex-col lg:flex-row items-center gap-8">
-                      <div className="relative drop-shadow-[0_0_24px_rgba(34,197,94,0.25)]">
-                        <svg className="w-40 h-40 lg:w-48 lg:h-48" viewBox="0 0 200 200">
-                          <defs>
-                            <linearGradient id="icdRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                              <stop offset="0%" stopColor="hsl(160, 84%, 39%)" />
-                              <stop offset="100%" stopColor="hsl(239, 84%, 67%)" />
-                            </linearGradient>
-                          </defs>
-                          <circle
-                            cx="100"
-                            cy="100"
-                            r="80"
-                            fill="none"
-                            stroke="hsl(var(--muted))"
-                            strokeWidth="14"
-                            className="opacity-40"
-                          />
-                          <circle
-                            cx="100"
-                            cy="100"
-                            r="80"
-                            fill="none"
-                            stroke="url(#icdRingGradient)"
-                            strokeWidth="14"
-                            strokeDasharray={`${(icdScore / 100) * 502.4} 502.4`}
-                            strokeLinecap="round"
-                            transform="rotate(-90 100 100)"
-                            className="transition-all duration-700 ease-out"
-                          />
-                          <text
-                            x="100"
-                            y="100"
-                            textAnchor="middle"
-                            dy="0.3em"
-                            className="text-5xl font-bold fill-foreground tabular-nums"
-                          >
-                            {Math.round(icdScore)}
-                          </text>
-                        </svg>
-                      </div>
-                      <div className="flex-1 text-center lg:text-left">
-                        <h3 className="text-2xl font-bold mb-2 leading-tight">Índice Cognitivo Diario (ICD)</h3>
-                        <div className="flex items-center justify-center lg:justify-start gap-2 mb-4">
-                          <Badge 
-                            className="text-lg px-4 py-1"
-                            style={{ backgroundColor: zoneColor, color: 'white' }}
-                          >
-                            {icd?.strategy?.emoji} Zona: {zoneLabel}
-                          </Badge>
-                        </div>
-                        {icd?.strategy && (
-                          <Card className="bg-secondary/50 dark:bg-slate-800/50 rounded-2xl border-slate-800 dark:border-white/10">
-                            <CardHeader className="pb-3">
-                              <CardTitle className="text-lg font-semibold">Estrategia Actual</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <p className="text-xl font-semibold text-balance leading-relaxed">{icd.strategy.name}</p>
-                              <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-                                {icd.strategy.description}
-                              </p>
-                            </CardContent>
-                          </Card>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="border border-slate-800 dark:border-white/10 rounded-2xl bg-slate-900/50 dark:bg-slate-900/50">
-                  <CardContent className="p-6 lg:p-8">
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground mb-4">Sin datos de ICD para hoy</p>
-                      <p className="text-sm text-muted-foreground">Completa el formulario de datos fisiológicos en Bio-Tracker</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Biometrics Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {!hasTodayData ? (
-                  <Card className="md:col-span-2 lg:col-span-4 rounded-2xl border-slate-800 dark:border-white/10 bg-slate-900/50">
-                    <CardContent className="p-6 flex flex-col items-center justify-center gap-4">
-                      <p className="text-muted-foreground text-center mb-0">
-                        Sin datos biométricos para hoy
-                      </p>
-                      <Button
-                        onClick={() => setCurrentView('biotracker')}
-                        variant="default"
-                        size="lg"
-                        className="shrink-0"
-                      >
-                        Añadir día en Bio-Tracker
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <>
-                    <Card className="transition-all duration-300 hover:shadow-xl hover:border-white/15">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm font-semibold text-foreground">VFC (lnRMSSD)</CardTitle>
-                          <Heart className="h-4 w-4 text-slate-400" />
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-2xl font-bold tabular-nums">{biometrics.hrv.value} ms</p>
-                            <p className="text-xs text-slate-400">ln: {biometrics.hrv.ln}</p>
-                          </div>
-                          {biometrics.hrv.trend === 'up' ? (
-                            <TrendingUp className="h-6 w-6 text-green-500" />
-                          ) : (
-                            <TrendingDown className="h-6 w-6 text-red-500" />
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="transition-all duration-300 hover:shadow-xl hover:border-white/15">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm font-semibold text-foreground">Calidad de Sueño</CardTitle>
-                          <Moon className="h-4 w-4 text-slate-400" />
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-2xl font-bold mb-2 tabular-nums">{biometrics.sleep}%</p>
-                        <Progress value={biometrics.sleep} className="h-2" />
-                      </CardContent>
-                    </Card>
-
-                    <Card className="transition-all duration-300 hover:shadow-xl hover:border-white/15">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm font-semibold text-foreground">Batería Corporal</CardTitle>
-                          <Battery className="h-4 w-4 text-slate-400" />
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-2xl font-bold mb-2 tabular-nums">{biometrics.battery}/100</p>
-                        <Progress value={biometrics.battery} className="h-2" />
-                      </CardContent>
-                    </Card>
-
-                    <Card className="transition-all duration-300 hover:shadow-xl hover:border-white/15">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm font-semibold text-foreground">Estado Recuperación</CardTitle>
-                          <Zap className="h-4 w-4 text-slate-400" />
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-2xl font-bold">{biometrics.recovery}</p>
-                      </CardContent>
-                    </Card>
-                  </>
-                )}
-              </div>
-
-              {/* Desglose de sueño (total, profundo, REM, ligero) en horas-min */}
-              {hasSleepBreakdown && (
-                <Card className="transition-all duration-300 hover:shadow-xl hover:border-white/15">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-semibold text-foreground">Desglose de sueño</CardTitle>
-                      <Moon className="h-4 w-4 text-slate-400" />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                      {todayBiometrics?.sleep_total_min != null && (
-                        <div>
-                          <p className="text-muted-foreground text-xs uppercase">Total</p>
-                          <p className="font-semibold tabular-nums">{formatMinToHoursMin(todayBiometrics.sleep_total_min)}</p>
-                        </div>
-                      )}
-                      {todayBiometrics?.deep_sleep_min != null && (
-                        <div>
-                          <p className="text-muted-foreground text-xs uppercase">Profundo</p>
-                          <p className="font-semibold tabular-nums">{formatMinToHoursMin(todayBiometrics.deep_sleep_min)}</p>
-                        </div>
-                      )}
-                      {todayBiometrics?.rem_sleep_min != null && (
-                        <div>
-                          <p className="text-muted-foreground text-xs uppercase">REM</p>
-                          <p className="font-semibold tabular-nums">{formatMinToHoursMin(todayBiometrics.rem_sleep_min)}</p>
-                        </div>
-                      )}
-                      {todayBiometrics?.light_sleep_min != null && (
-                        <div>
-                          <p className="text-muted-foreground text-xs uppercase">Ligero</p>
-                          <p className="font-semibold tabular-nums">{formatMinToHoursMin(todayBiometrics.light_sleep_min)}</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Study Streak */}
-              <Card className="rounded-2xl border-slate-800 dark:border-white/10">
-                <CardHeader>
-                  <CardTitle className="font-semibold text-foreground">Racha de Estudio</CardTitle>
-                  <CardDescription className="text-muted-foreground">Últimos 28 días</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-7 gap-2">
-                    {Array.from({ length: 28 }, (_, i) => {
-                      const dayDate = new Date()
-                      dayDate.setDate(dayDate.getDate() - (27 - i))
-                      const dayStr = dayDate.toISOString().split('T')[0]
-                      const hasStudy = studyStreak.includes(dayStr)
-                      return (
-                        <div
-                          key={i}
-                          className="aspect-square rounded"
-                          style={{
-                            backgroundColor: hasStudy ? zoneColor : 'hsl(var(--muted))',
-                            opacity: hasStudy ? 1 : 0.3
-                          }}
-                          title={dayStr}
-                        />
-                      )
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
           {/* Mapa mental — texto → grafo de conceptos */}
           {currentView === 'mindmap' && (
             <div className="flex flex-col flex-1 min-h-0 h-full">

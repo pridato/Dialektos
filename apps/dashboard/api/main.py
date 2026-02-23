@@ -33,11 +33,20 @@ if str(project_root) not in sys.path:
 
 app = FastAPI(title="Dialektos API", version="1.0.0")
 
-# CORS - Permitir requests desde Next.js
+# CORS - Permitir requests desde Next.js (varios puertos por si 3000 está ocupado)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000",
-                   "http://localhost:3001"],  # Next.js dev server
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://localhost:3003",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
+        "http://127.0.0.1:3003",
+        "http://127.0.2.2:3003",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
